@@ -133,6 +133,30 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
 RC SqlEngine::load(const string& table, const string& loadfile, bool index)
 {
   /* your code here */
+  //this is where we implement 2A
+  //
+
+  if(index == FALSE)
+  {
+    //with index option not specified; only worry about loadfile and tablet
+    //reading loadfile use fstream or fgets
+
+    //must use RecordFile to store the the table
+    //create a RecordFile named tablename + tbl (i.e. movie.tbl) & store all tuples here
+
+    //then parse each line of the loadfile to read a tuple 
+    //probably will use SqlEngine::parseLoadLine()
+    //then insert this tuple into the correct RecordFile
+
+    //if file already exists; load command should append all records in the load
+    //file to the end of the table
+
+  }
+  else //need to worry about with index option
+  {
+
+  }
+
 
   return 0;
 }
