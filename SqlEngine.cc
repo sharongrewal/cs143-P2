@@ -138,7 +138,7 @@ RC SqlEngine::load(const string& table, const string& loadfile, bool index)
 
   if(index == FALSE)
   {
-    //with index option not specified; only worry about loadfile and tablet
+    //with index option not specified; only worry about loadfile and table
     //reading loadfile use fstream or fgets
 
     //must use RecordFile to store the the table
