@@ -134,9 +134,6 @@ RC SqlEngine::load(const string& table, const string& loadfile, bool index)
 {
   /* our implementation */
 
-<<<<<<< HEAD
-  if(index == FALSE)
-  {
     //with index option not specified; only worry about loadfile and table
     //reading loadfile use fstream or fgets
   //for now assume that index will always be false
