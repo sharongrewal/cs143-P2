@@ -132,9 +132,78 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
 
 RC SqlEngine::load(const string& table, const string& loadfile, bool index)
 {
-  /* your code here */
+  /* our implementation */
 
-  return 0;
+  //for now assume that index will always be false
+
+  //variables for files
+  ifstream curr_file;
+  RecordFile rec_file;
+
+ //table values
+   int key;
+   string value;
+   RecordId rid;
+
+
+ //RecordFile status variables
+ RC rc=0;
+ RC r_close;
+
+
+ string line_buffer; //buffer for reading from loadfile
+
+ int line_num = 0; //keep track which line we're on
+
+  //attempt to open the file
+  curr_file.open(loadfile.c_str(), std::ifstream::in);
+
+  if(!curr_file.is_open()) //if opening the file failed
+  {	
+	return RC_FILE_OPEN_FAILED;
+
+  } 
+ if((rc = rec_file.open((table + ".tbl").c_str(), 'w')) != 0)
+ {	fprintf(stderr, "Error opening record file for table %s\n", table.c_str());
+        return rc;
+ }
+ 
+ while(!curr_file.eof()) //while not end of file
+{
+  getline(curr_file, line_buffer);
+
+  if(line_buffer == "")
+     break; //move to next non empty string
+
+  //start to parse the file otherwise
+  if((rc = parseLoadLine(line_buffer, key, value)) != 0)
+  {
+	fprintf(stderr, "Error parsing from loadfile %s at line %i\n", 
+          loadfile.c_str(), line_num);
+ }
+
+ //append the line 
+ if((rc = rec_file.append(key, value, rid)) != 0)
+ {
+	fprintf(stderr, "Error appending to table %s\n", table.c_str());
+        break;
+
+ }
+	line_num++; //increment line_num
+}
+
+//attempt to close the file now
+curr_file.close();
+
+//close the RecordFile as well
+if((r_close = rec_file.close()) != 0)
+{
+	return r_close;
+}
+
+
+
+  return rc;
 }
 
 RC SqlEngine::parseLoadLine(const string& line, int& key, string& value)
