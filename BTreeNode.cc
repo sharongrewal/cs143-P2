@@ -9,7 +9,10 @@ using namespace std;
  * @return 0 if successful. Return an error code if there is an error.
  */
 RC BTLeafNode::read(PageId pid, const PageFile& pf)
-{ return 0; }
+{
+	RC rc = pf.read(pid, buffer);
+	return rc; 
+}
     
 /*
  * Write the content of the node to the page pid in the PageFile pf.
@@ -18,7 +21,10 @@ RC BTLeafNode::read(PageId pid, const PageFile& pf)
  * @return 0 if successful. Return an error code if there is an error.
  */
 RC BTLeafNode::write(PageId pid, PageFile& pf)
-{ return 0; }
+{
+	RC rc = pf.write(pid, buffer);
+	return rc;
+}
 
 /*
  * Return the number of keys stored in the node.
@@ -50,6 +56,24 @@ RC BTLeafNode::insertAndSplit(int key, const RecordId& rid,
                               BTLeafNode& sibling, int& siblingKey)
 { return 0; }
 
+RC BTLeafNode::getKeyRec(int eid, int& key, RecordId& rid)
+{ 
+  if(eid < 0 || eid >= getKeyCount())
+    return RC_INVALID_CURSOR;
+
+  int* bufferPtr = (int*) buffer;
+
+  // 3 is the size of the node entry (key, pageID, slotID)
+  // 1st entry in the page is a pointer to the child node, so increment
+  // should probably use declare constant variables
+  int index = eid * 3 + 1;
+  key = *(bufferPtr + index);
+  rid.pid = *(bufferPtr + index + 1);
+  rid.sid = *(bufferPtr + index + 2);
+
+  return 0; 
+}
+
 /**
  * If searchKey exists in the node, set eid to the index entry
  * with searchKey and return 0. If not, set eid to the index entry
@@ -62,7 +86,18 @@ RC BTLeafNode::insertAndSplit(int key, const RecordId& rid,
  * @return 0 if searchKey is found. Otherwise return an error code.
  */
 RC BTLeafNode::locate(int searchKey, int& eid)
-{ return 0; }
+{
+	int key;
+	RecordId rid;
+
+	for(eid = 0; eid < getKeyCount(); eid++) {
+		getKeyRec(eid, key, rid);
+		if (key >= searchKey)
+			return 0;
+	}
+	eid = -1;
+	return RC_NO_SUCH_RECORD;
+}
 
 /*
  * Read the (key, rid) pair from the eid entry.
