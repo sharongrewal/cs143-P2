@@ -40,8 +40,7 @@ int BTLeafNode::getKeyCount()
 	int key;
 	RecordId rid;
 
-	for (int eid = 0; eid < MAX_KEYS; eid++)
-	{
+	for (int eid = 0; eid < MAX_KEYS; eid++) {
 		readLEntry(eid, key, rid);
 		if (key < 0 || rid.pid < 0 || rid.sid < 0)
 			break;
@@ -58,7 +57,32 @@ int BTLeafNode::getKeyCount()
  * @return 0 if successful. Return an error code if the node is full.
  */
 RC BTLeafNode::insert(int key, const RecordId& rid)
-{ return 0; }
+{
+	int count = getKeyCount();
+	// ISSUE: If the node is full, do we need to split or just report error?
+	if (count >= MAX_KEYS)
+    	return RC_NODE_FULL;
+
+	int eid;
+	RC rc = locate(key, eid);
+	if (rc < 0) {
+		if (rc != RC_NO_SUCH_RECORD)
+    		return rc;
+    	else eid = count;
+    }
+    int* bufferPtr = (int*) buffer;
+
+	for (int k = count * ENTRY_SIZE - 1; k >= eid * ENTRY_SIZE; k--) {
+    	buffer[k + ENTRY_SIZE] = buffer[k];
+    	if (k == eid * ENTRY_SIZE) {
+    		*(bufferPtr + key_index) = key;
+			*(bufferPtr + key_index + sizeof(int)) = rid.pid;
+			*(bufferPtr + key_index + sizeof(int) + sizeof(int)) = rid.sid;
+    	}
+	}
+
+	return 0;
+}
 
 /*
  * Insert the (key, rid) pair to the node
@@ -72,7 +96,48 @@ RC BTLeafNode::insert(int key, const RecordId& rid)
  */
 RC BTLeafNode::insertAndSplit(int key, const RecordId& rid, 
                               BTLeafNode& sibling, int& siblingKey)
-{ return 0; }
+{
+
+	RC rc;
+	int numKeys = getKeyCount();
+
+	// Check to make sure the node is full. Otherwise, error.
+	// ISSUE: Can we make the assumption that we would only want to split if the node was full?
+	if (numKeys < MAX_KEYS)
+		return RC_INVALID_FILE_FORMAT;
+    else if (sibling.getKeyCount() != 0)
+		return RC_INVALID_ATTRIBUTE;
+	
+	// Get the index of the middle of the full node, to prepare to split node in half with sibling.
+	int sib_key;
+	RecordId sib_rid;
+	int mid = (numKeys + 1) / 2;
+	int* bufferPtr = (int*) buffer;
+
+	// Move second half of current node into sibling node; delete moved data from original node.
+	for (int key_index = mid * ENTRY_SIZE; key_index < numKeys * ENTRY_SIZE; key_index++) {
+		// read from original node, insert into sibling node
+		if (rc = readLEntry(key_index/ENTRY_SIZE, sib_key, sib_rid) < 0
+			|| rc = sibling.insert(sib_key, sib_rid) < 0) {
+			return rc;
+		}
+		// delete from original node
+		*(bufferPtr + key_index) = -1;
+		*(bufferPtr + key_index + sizeof(int)) = -1;
+		*(bufferPtr + key_index + sizeof(int) + sizeof(int)) = -1;
+	}
+
+	// Set sibling's pointer to next sibling node.
+	sibling.setNextNodePtr(getNextNodePtr());
+
+	// Insert new (key, rid) pair into correct position
+	// ISSUE: Do we need to push up values to parent node?
+	if (key < siblingKey) {
+		insert(key, rid);
+	} else sibling.insert(key, rid);
+
+	return 0;
+}
 
 /**
  * If searchKey exists in the node, set eid to the index entry
@@ -124,7 +189,7 @@ RC BTLeafNode::readLEntry(int eid, int& key, RecordId& rid)
 		return RC_INVALID_CURSOR;
 
 	int* bufferPtr = (int*) buffer;
-	int index = eid * ENTRY_SIZE + sizeof(PageId);
+	int index = eid * ENTRY_SIZE;
 
 	key = *(bufferPtr + index);
 	rid.pid = *(bufferPtr + index + sizeof(PageId));
@@ -187,8 +252,7 @@ int BTNonLeafNode::getKeyCount()
 	int numKeys = 0;
 	int key;
 
-	for (int pid = 0; pid < MAX_KEYS; pid++)
-	{
+	for (int pid = 0; pid < MAX_KEYS; pid++) {
 		readNLEntry(pid, key);
 		if (key < 0)
 			break;
@@ -198,7 +262,6 @@ int BTNonLeafNode::getKeyCount()
 	return numKeys;
 }
 
-
 /*
  * Insert a (key, pid) pair to the node.
  * @param key[IN] the key to insert
@@ -206,7 +269,15 @@ int BTNonLeafNode::getKeyCount()
  * @return 0 if successful. Return an error code if the node is full.
  */
 RC BTNonLeafNode::insert(int key, PageId pid)
-{ return 0; }
+{
+	int currentCount = getKeyCount();
+	if (currentCount >= MAX_KEYS)
+    	return RC_NODE_FULL;
+
+    // TODO: everything lol
+
+	return 0;
+}
 
 /*
  * Insert the (key, pid) pair to the node
@@ -239,4 +310,13 @@ RC BTNonLeafNode::locateChildPtr(int searchKey, PageId& pid)
  * @return 0 if successful. Return an error code if there is an error.
  */
 RC BTNonLeafNode::initializeRoot(PageId pid1, int key, PageId pid2)
-{ return 0; }
+{
+	// TODO: Do we need to allocate memory for this?
+	int* ptr = (int*) buffer;
+
+	*(ptr + 1) = pid1;
+	*(ptr + 2) = key;
+	*(ptr + 3) = pid2;
+
+	return 0;
+}
