@@ -14,11 +14,38 @@
 #include "PageFile.h"
 #include "Bruinbase.h"
 
+ class BTNode {
+ public:
+
+    /**
+    * Read the content of the node from the page pid in the PageFile pf.
+    * @param pid[IN] the PageId to read
+    * @param pf[IN] PageFile to read from
+    * @return 0 if successful. Return an error code if there is an error.
+    */
+    RC read(PageId pid, const PageFile& pf);
+    
+   /**
+    * Write the content of the node to the page pid in the PageFile pf.
+    * @param pid[IN] the PageId to write to
+    * @param pf[IN] PageFile to write to
+    * @return 0 if successful. Return an error code if there is an error.
+    */
+    RC write(PageId pid, PageFile& pf);
+
+ private:
+ };
+
 /**
  * BTLeafNode: The class representing a B+tree leaf node.
  */
-class BTLeafNode {
+class BTLeafNode: public BTNode {
   public:
+    // size of a leaf node entry
+    static const int ENTRY_SIZE = sizeof(RecordId) + sizeof(int);
+    // number of record/key pairs per leaf node
+    static const int MAX_KEYS = (PageFile::PAGE_SIZE - sizeof(PageId)) / ENTRY_SIZE;
+
    /**
     * Insert the (key, rid) pair to the node.
     * Remember that all keys inside a B+tree node should be kept sorted.
@@ -82,22 +109,6 @@ class BTLeafNode {
     * @return the number of keys in the node
     */
     int getKeyCount();
- 
-   /**
-    * Read the content of the node from the page pid in the PageFile pf.
-    * @param pid[IN] the PageId to read
-    * @param pf[IN] PageFile to read from
-    * @return 0 if successful. Return an error code if there is an error.
-    */
-    RC read(PageId pid, const PageFile& pf);
-    
-   /**
-    * Write the content of the node to the page pid in the PageFile pf.
-    * @param pid[IN] the PageId to write to
-    * @param pf[IN] PageFile to write to
-    * @return 0 if successful. Return an error code if there is an error.
-    */
-    RC write(PageId pid, PageFile& pf);
 
   private:
    /**
@@ -111,8 +122,14 @@ class BTLeafNode {
 /**
  * BTNonLeafNode: The class representing a B+tree nonleaf node.
  */
-class BTNonLeafNode {
+class BTNonLeafNode: public BTNode {
   public:
+
+    // size of a non-leaf node entry
+    static const int ENTRY_SIZE = 2 * sizeof(int);
+    // number of pid/key pairs per non-leaf node
+    static const int MAX_KEYS = (PageFile::PAGE_SIZE - sizeof(PageId)) / ENTRY_SIZE;
+
    /**
     * Insert a (key, pid) pair to the node.
     * Remember that all keys inside a B+tree node should be kept sorted.
@@ -160,22 +177,6 @@ class BTNonLeafNode {
     * @return the number of keys in the node
     */
     int getKeyCount();
-
-   /**
-    * Read the content of the node from the page pid in the PageFile pf.
-    * @param pid[IN] the PageId to read
-    * @param pf[IN] PageFile to read from
-    * @return 0 if successful. Return an error code if there is an error.
-    */
-    RC read(PageId pid, const PageFile& pf);
-    
-   /**
-    * Write the content of the node to the page pid in the PageFile pf.
-    * @param pid[IN] the PageId to write to
-    * @param pf[IN] PageFile to write to
-    * @return 0 if successful. Return an error code if there is an error.
-    */
-    RC write(PageId pid, PageFile& pf);
 
   private:
    /**

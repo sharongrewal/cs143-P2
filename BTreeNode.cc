@@ -8,7 +8,7 @@ using namespace std;
  * @param pf[IN] PageFile to read from
  * @return 0 if successful. Return an error code if there is an error.
  */
-RC BTLeafNode::read(PageId pid, const PageFile& pf)
+RC BTNode::read(PageId pid, const PageFile& pf)
 {
 	RC rc = pf.read(pid, buffer);
 	return rc; 
@@ -20,7 +20,7 @@ RC BTLeafNode::read(PageId pid, const PageFile& pf)
  * @param pf[IN] PageFile to write to
  * @return 0 if successful. Return an error code if there is an error.
  */
-RC BTLeafNode::write(PageId pid, PageFile& pf)
+RC BTNode::write(PageId pid, PageFile& pf)
 {
 	RC rc = pf.write(pid, buffer);
 	return rc;
@@ -31,7 +31,25 @@ RC BTLeafNode::write(PageId pid, PageFile& pf)
  * @return the number of keys in the node
  */
 int BTLeafNode::getKeyCount()
-{ return 0; }
+{
+	/*
+	 * Note: Leaf nodes just need to read the keys for each entry
+	 * in the node (until empty or until page_id pointer)
+	*/
+	int numKeys = 0;
+	int key;
+	RecordId rid;
+
+	for (int eid = 0; eid < MAX_KEYS; eid++)
+	{
+		readLEntry(eid, key, rid);
+		if (key < 0 || rid.pid < 0 || rid.sid < 0)
+			break;
+		else numKeys++;
+	}
+
+	return numKeys;
+}
 
 /*
  * Insert a (key, rid) pair to the node.
@@ -56,24 +74,6 @@ RC BTLeafNode::insertAndSplit(int key, const RecordId& rid,
                               BTLeafNode& sibling, int& siblingKey)
 { return 0; }
 
-RC BTLeafNode::getKeyRec(int eid, int& key, RecordId& rid)
-{ 
-  if(eid < 0 || eid >= getKeyCount())
-    return RC_INVALID_CURSOR;
-
-  int* bufferPtr = (int*) buffer;
-
-  // 3 is the size of the node entry (key, pageID, slotID)
-  // 1st entry in the page is a pointer to the child node, so increment
-  // should probably use declare constant variables
-  int index = eid * 3 + 1;
-  key = *(bufferPtr + index);
-  rid.pid = *(bufferPtr + index + 1);
-  rid.sid = *(bufferPtr + index + 2);
-
-  return 0; 
-}
-
 /**
  * If searchKey exists in the node, set eid to the index entry
  * with searchKey and return 0. If not, set eid to the index entry
@@ -91,10 +91,11 @@ RC BTLeafNode::locate(int searchKey, int& eid)
 	RecordId rid;
 
 	for(eid = 0; eid < getKeyCount(); eid++) {
-		getKeyRec(eid, key, rid);
+		readEntry(eid, key, rid);
 		if (key >= searchKey)
 			return 0;
 	}
+
 	eid = -1;
 	return RC_NO_SUCH_RECORD;
 }
@@ -106,15 +107,42 @@ RC BTLeafNode::locate(int searchKey, int& eid)
  * @param rid[OUT] the RecordId from the entry
  * @return 0 if successful. Return an error code if there is an error.
  */
-RC BTLeafNode::readEntry(int eid, int& key, RecordId& rid)
-{ return 0; }
+RC BTLeafNode::readLEntry(int eid, int& key, RecordId& rid)
+{ 
+	// NOTE: eid is the index of the leaf node
+
+	// TODO: Not really sure if we should be using buffer or another
+	// structure?? HERE, buffer represents the leaf node.
+
+	// TODO: Make a struct for (key, rid)?
+	// Right now, it assumes that we assume key, rid, sid are adjacent
+	// values in an array.
+
+	// Is it necessary to check if eid exceeds number of keys in page?
+
+	if (eid < 0 || eid >= MAX_KEYS)
+		return RC_INVALID_CURSOR;
+
+	int* bufferPtr = (int*) buffer;
+	int index = eid * ENTRY_SIZE + sizeof(PageId);
+
+	key = *(bufferPtr + index);
+	rid.pid = *(bufferPtr + index + sizeof(PageId));
+	rid.sid = *(bufferPtr + index + sizeof(PageId) + sizeof(int));
+
+	return 0; 
+}
 
 /*
  * Return the pid of the next slibling node.
  * @return the PageId of the next sibling node 
  */
 PageId BTLeafNode::getNextNodePtr()
-{ return 0; }
+{
+	int* p = (int*) buffer;
+	p = p + (MAX_KEYS * ENTRY_SIZE);
+	return *p;
+}
 
 /*
  * Set the pid of the next slibling node.
@@ -122,32 +150,53 @@ PageId BTLeafNode::getNextNodePtr()
  * @return 0 if successful. Return an error code if there is an error.
  */
 RC BTLeafNode::setNextNodePtr(PageId pid)
-{ return 0; }
+{
+	// TODO: Check if pid is null? Not really sure what errors arise.
+	if (pid < 0)
+		return RC_INVALID_PID;
 
-/*
- * Read the content of the node from the page pid in the PageFile pf.
- * @param pid[IN] the PageId to read
- * @param pf[IN] PageFile to read from
- * @return 0 if successful. Return an error code if there is an error.
- */
-RC BTNonLeafNode::read(PageId pid, const PageFile& pf)
-{ return 0; }
-    
-/*
- * Write the content of the node to the page pid in the PageFile pf.
- * @param pid[IN] the PageId to write to
- * @param pf[IN] PageFile to write to
- * @return 0 if successful. Return an error code if there is an error.
- */
-RC BTNonLeafNode::write(PageId pid, PageFile& pf)
-{ return 0; }
+	int* p = (int*) buffer;
+	p = p + (MAX_KEYS * ENTRY_SIZE);
+	*p = pid;
+
+	return 0;
+}
+
+RC BTNonLeafNode::readNLEntry(int pid, int& key)
+{
+	// Is it necessary to check if eid exceeds number of keys in page?
+	if (pid < 0 || pid >= MAX_KEYS)
+		return RC_INVALID_CURSOR;
+
+	int* bufferPtr = (int*) buffer;
+	// gives index of key
+	int index = pid * ENTRY_SIZE + sizeof(PageId);
+
+	key = *(bufferPtr + index);
+
+	return 0; 
+}
 
 /*
  * Return the number of keys stored in the node.
  * @return the number of keys in the node
  */
 int BTNonLeafNode::getKeyCount()
-{ return 0; }
+{
+	/*Non-leaf nodes read every other key in the array for a key.*/
+	int numKeys = 0;
+	int key;
+
+	for (int pid = 0; pid < MAX_KEYS; pid++)
+	{
+		readNLEntry(pid, key);
+		if (key < 0)
+			break;
+		numKeys++;
+	}
+
+	return numKeys;
+}
 
 
 /*
