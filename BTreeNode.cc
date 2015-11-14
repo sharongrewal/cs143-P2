@@ -39,10 +39,11 @@ int BTLeafNode::getKeyCount()
 	int numKeys = 0;
 	int key;
 	RecordId rid;
+	RC rc;
 
 	for (int eid = 0; eid < MAX_KEYS; eid++) {
-		readLEntry(eid, key, rid);
-		if (key < 0 || rid.pid < 0 || rid.sid < 0)
+		rc = readLEntry(eid, key, rid);
+		if (key < 0 || rc < 0)
 			break;
 		else numKeys++;
 	}
@@ -70,8 +71,10 @@ RC BTLeafNode::insert(int key, const RecordId& rid)
     		return rc;
     	else eid = count;
     }
+
     int* bufferPtr = (int*) buffer;
 
+    // Moves keys over by one index, and inserts new values into correct position.
 	for (int key_index = count * ENTRY_SIZE - 1; key_index >= eid * ENTRY_SIZE; key_index--) {
     	buffer[key_index + ENTRY_SIZE] = buffer[key_index];
     	if (key_index == eid * ENTRY_SIZE) {
@@ -155,10 +158,14 @@ RC BTLeafNode::locate(int searchKey, int& eid)
 {
 	int key;
 	RecordId rid;
+	RC rc;
 
+	// Reads each entry in node until the key of that (key, rid) pair is >= desired key.
 	for(eid = 0; eid < getKeyCount(); eid++) {
-		readLEntry(eid, key, rid);
-		if (key >= searchKey)
+		rc = readLEntry(eid, key, rid);
+		if (rc < 0)
+			return rc;
+		else if (key >= searchKey)
 			return 0;
 	}
 
@@ -194,7 +201,11 @@ RC BTLeafNode::readLEntry(int eid, int& key, RecordId& rid)
 
 	key = *(bufferPtr + index);
 	rid.pid = *(bufferPtr + index + sizeof(PageId));
+	if (rid.pid < 0)
+		return RC_INVALID_PID;
 	rid.sid = *(bufferPtr + index + sizeof(PageId) + sizeof(int));
+	if (rid.sid < 0)
+		return RC_INVALID_RID;
 
 	return 0; 
 }
@@ -221,6 +232,7 @@ RC BTLeafNode::setNextNodePtr(PageId pid)
 	if (pid < 0)
 		return RC_INVALID_PID;
 
+	// Set pointer to end of buffer (node). Set node pointer to pid.
 	int* p = (int*) buffer;
 	p = p + (MAX_KEYS * ENTRY_SIZE);
 	*p = pid;
@@ -252,17 +264,22 @@ RC BTNonLeafNode::write(PageId pid, PageFile& pf)
 	return rc;
 }
 
-RC BTNonLeafNode::readNLEntry(int pid, int& key)
+/*
+ * Read the key from the node based on index.
+ * @param index[IN] the index to read the key from
+ * @param key[OUT] the key from the entry
+ * @return 0 if successful. Return an error code if there is an error.
+ */
+RC BTNonLeafNode::readNLEntry(int index, int& key)
 {
 	// Is it necessary to check if eid exceeds number of keys in page?
-	if (pid < 0 || pid >= MAX_KEYS)
+	if (index < 0 || index >= MAX_KEYS)
 		return RC_INVALID_CURSOR;
 
+	// Sets ptr to index of key (indicated by index). Gets key value.
 	int* bufferPtr = (int*) buffer;
-	// gives index of key
-	int index = pid * ENTRY_SIZE + sizeof(PageId);
-
-	key = *(bufferPtr + index);
+	int total_index = index * ENTRY_SIZE + sizeof(PageId);
+	key = *(bufferPtr + total_index);
 
 	return 0; 
 }
@@ -276,9 +293,11 @@ int BTNonLeafNode::getKeyCount()
 	/*Non-leaf nodes read every other key in the array for a key.*/
 	int numKeys = 0;
 	int key;
+	RC rc;
 
+	// Counts number of keys in node.
 	for (int pid = 0; pid < MAX_KEYS; pid++) {
-		readNLEntry(pid, key);
+		rc = readNLEntry(pid, key);
 		if (key < 0)
 			break;
 		numKeys++;
