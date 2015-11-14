@@ -14,8 +14,15 @@
 #include "PageFile.h"
 #include "Bruinbase.h"
 
- class BTNode {
- public:
+/**
+ * BTLeafNode: The class representing a B+tree leaf node.
+ */
+class BTLeafNode {
+  public:
+    // size of a leaf node entry
+    static const int ENTRY_SIZE = sizeof(RecordId) + sizeof(int);
+    // number of record/key pairs per leaf node
+    static const int MAX_KEYS = (PageFile::PAGE_SIZE - sizeof(PageId)) / ENTRY_SIZE;
 
     /**
     * Read the content of the node from the page pid in the PageFile pf.
@@ -32,19 +39,6 @@
     * @return 0 if successful. Return an error code if there is an error.
     */
     RC write(PageId pid, PageFile& pf);
-
- private:
- };
-
-/**
- * BTLeafNode: The class representing a B+tree leaf node.
- */
-class BTLeafNode: public BTNode {
-  public:
-    // size of a leaf node entry
-    static const int ENTRY_SIZE = sizeof(RecordId) + sizeof(int);
-    // number of record/key pairs per leaf node
-    static const int MAX_KEYS = (PageFile::PAGE_SIZE - sizeof(PageId)) / ENTRY_SIZE;
 
    /**
     * Insert the (key, rid) pair to the node.
@@ -88,7 +82,7 @@ class BTLeafNode: public BTNode {
     * @param rid[OUT] the RecordId from the slot
     * @return 0 if successful. Return an error code if there is an error.
     */
-    RC readEntry(int eid, int& key, RecordId& rid);
+    RC readLEntry(int eid, int& key, RecordId& rid);
 
    /**
     * Return the pid of the next slibling node.
@@ -122,13 +116,29 @@ class BTLeafNode: public BTNode {
 /**
  * BTNonLeafNode: The class representing a B+tree nonleaf node.
  */
-class BTNonLeafNode: public BTNode {
+class BTNonLeafNode {
   public:
 
     // size of a non-leaf node entry
     static const int ENTRY_SIZE = 2 * sizeof(int);
     // number of pid/key pairs per non-leaf node
     static const int MAX_KEYS = (PageFile::PAGE_SIZE - sizeof(PageId)) / ENTRY_SIZE;
+
+    /**
+    * Read the content of the node from the page pid in the PageFile pf.
+    * @param pid[IN] the PageId to read
+    * @param pf[IN] PageFile to read from
+    * @return 0 if successful. Return an error code if there is an error.
+    */
+    RC read(PageId pid, const PageFile& pf);
+    
+   /**
+    * Write the content of the node to the page pid in the PageFile pf.
+    * @param pid[IN] the PageId to write to
+    * @param pf[IN] PageFile to write to
+    * @return 0 if successful. Return an error code if there is an error.
+    */
+    RC write(PageId pid, PageFile& pf);
 
    /**
     * Insert a (key, pid) pair to the node.
@@ -138,6 +148,15 @@ class BTNonLeafNode: public BTNode {
     * @return 0 if successful. Return an error code if the node is full.
     */
     RC insert(int key, PageId pid);
+
+   /**
+    * Read the (pid, key) pair from the eid entry.
+    * @param pid[IN] the entry number to read the (pid, key) pair from
+    * @param pid[OUT] the pid from the slot
+    * @param key[OUT] the key from the slot
+    * @return 0 if successful. Return an error code if there is an error.
+    */
+    RC readNLEntry(int pid, int& key);
 
    /**
     * Insert the (key, pid) pair to the node

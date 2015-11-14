@@ -8,7 +8,7 @@ using namespace std;
  * @param pf[IN] PageFile to read from
  * @return 0 if successful. Return an error code if there is an error.
  */
-RC BTNode::read(PageId pid, const PageFile& pf)
+RC BTLeafNode::read(PageId pid, const PageFile& pf)
 {
 	RC rc = pf.read(pid, buffer);
 	return rc; 
@@ -20,7 +20,7 @@ RC BTNode::read(PageId pid, const PageFile& pf)
  * @param pf[IN] PageFile to write to
  * @return 0 if successful. Return an error code if there is an error.
  */
-RC BTNode::write(PageId pid, PageFile& pf)
+RC BTLeafNode::write(PageId pid, PageFile& pf)
 {
 	RC rc = pf.write(pid, buffer);
 	return rc;
@@ -72,9 +72,9 @@ RC BTLeafNode::insert(int key, const RecordId& rid)
     }
     int* bufferPtr = (int*) buffer;
 
-	for (int k = count * ENTRY_SIZE - 1; k >= eid * ENTRY_SIZE; k--) {
-    	buffer[k + ENTRY_SIZE] = buffer[k];
-    	if (k == eid * ENTRY_SIZE) {
+	for (int key_index = count * ENTRY_SIZE - 1; key_index >= eid * ENTRY_SIZE; key_index--) {
+    	buffer[key_index + ENTRY_SIZE] = buffer[key_index];
+    	if (key_index == eid * ENTRY_SIZE) {
     		*(bufferPtr + key_index) = key;
 			*(bufferPtr + key_index + sizeof(int)) = rid.pid;
 			*(bufferPtr + key_index + sizeof(int) + sizeof(int)) = rid.sid;
@@ -117,10 +117,11 @@ RC BTLeafNode::insertAndSplit(int key, const RecordId& rid,
 	// Move second half of current node into sibling node; delete moved data from original node.
 	for (int key_index = mid * ENTRY_SIZE; key_index < numKeys * ENTRY_SIZE; key_index++) {
 		// read from original node, insert into sibling node
-		if (rc = readLEntry(key_index/ENTRY_SIZE, sib_key, sib_rid) < 0
-			|| rc = sibling.insert(sib_key, sib_rid) < 0) {
-			return rc;
-		}
+		rc = readLEntry(key_index/ENTRY_SIZE, sib_key, sib_rid);
+		if (rc < 0) return rc;
+		rc = sibling.insert(sib_key, sib_rid);
+		if (rc < 0) return rc;
+
 		// delete from original node
 		*(bufferPtr + key_index) = -1;
 		*(bufferPtr + key_index + sizeof(int)) = -1;
@@ -156,7 +157,7 @@ RC BTLeafNode::locate(int searchKey, int& eid)
 	RecordId rid;
 
 	for(eid = 0; eid < getKeyCount(); eid++) {
-		readEntry(eid, key, rid);
+		readLEntry(eid, key, rid);
 		if (key >= searchKey)
 			return 0;
 	}
@@ -225,6 +226,30 @@ RC BTLeafNode::setNextNodePtr(PageId pid)
 	*p = pid;
 
 	return 0;
+}
+
+/*
+ * Read the content of the node from the page pid in the PageFile pf.
+ * @param pid[IN] the PageId to read
+ * @param pf[IN] PageFile to read from
+ * @return 0 if successful. Return an error code if there is an error.
+ */
+RC BTNonLeafNode::read(PageId pid, const PageFile& pf)
+{
+	RC rc = pf.read(pid, buffer);
+	return rc; 
+}
+    
+/*
+ * Write the content of the node to the page pid in the PageFile pf.
+ * @param pid[IN] the PageId to write to
+ * @param pf[IN] PageFile to write to
+ * @return 0 if successful. Return an error code if there is an error.
+ */
+RC BTNonLeafNode::write(PageId pid, PageFile& pf)
+{
+	RC rc = pf.write(pid, buffer);
+	return rc;
 }
 
 RC BTNonLeafNode::readNLEntry(int pid, int& key)
