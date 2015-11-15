@@ -344,7 +344,24 @@ RC BTNonLeafNode::insertAndSplit(int key, PageId pid, BTNonLeafNode& sibling, in
  * @return 0 if successful. Return an error code if there is an error.
  */
 RC BTNonLeafNode::locateChildPtr(int searchKey, PageId& pid)
-{ return 0; }
+{ 
+	//check for errors
+    PageId* page = (PageId*) buffer;
+   non_leafNodeEntry * nl = (non_leafNodeEntry*) (buffer + sizeof(PageId));
+    int key_count = getKeyCount();
+    for(int c = 0; c < key_count; c++)
+    {
+    	if(nl[c].key > searchKey){
+    		pid = (c==0) ? *page : nl[c-1].pid;
+    		return 0;
+    	}
+    }
+    pid = nl[key_count-1].pid;
+    return 0;
+
+
+
+ }
 
 /*
  * Initialize the root node with (pid1, key, pid2).
@@ -355,6 +372,7 @@ RC BTNonLeafNode::locateChildPtr(int searchKey, PageId& pid)
  */
 RC BTNonLeafNode::initializeRoot(PageId pid1, int key, PageId pid2)
 {
+	//make sure buffer is empty
 	// TODO: Do we need to allocate memory for this?
 	int* ptr = (int*) buffer;
 
