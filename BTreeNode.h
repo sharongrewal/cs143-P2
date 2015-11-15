@@ -14,6 +14,18 @@
 #include "PageFile.h"
 #include "Bruinbase.h"
 
+ using namespace std;
+
+ typedef struct{
+    RecordId rid;
+    int key;
+ } leafNodeEntry;
+
+ typdef struct{
+    int key;
+    PageId pid;
+ } non_leafNodeEntry;
+
 /**
  * BTLeafNode: The class representing a B+tree leaf node.
  */
@@ -22,6 +34,7 @@ class BTLeafNode {
     // size of a leaf node entry
     static const int ENTRY_SIZE = sizeof(RecordId) + sizeof(int);
     // number of record/key pairs per leaf node
+    //does it need to be a pointer to PageId
     static const int MAX_KEYS = (PageFile::PAGE_SIZE - sizeof(PageId)) / ENTRY_SIZE;
 
     /**
