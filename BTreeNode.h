@@ -13,6 +13,8 @@
 #include "RecordFile.h"
 #include "PageFile.h"
 #include "Bruinbase.h"
+ #include <string.h>
+ #include <cstdio>
 
  using namespace std;
 
@@ -21,7 +23,7 @@
     int key;
  } leafNodeEntry;
 
- typdef struct{
+ typedef struct{
     int key;
     PageId pid;
  } non_leafNodeEntry;
