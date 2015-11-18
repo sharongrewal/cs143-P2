@@ -321,7 +321,21 @@ RC BTNonLeafNode::insert(int key, PageId pid)
 	if (currentCount >= MAX_KEYS)
     	return RC_NODE_FULL;
 
-    // TODO: everything lol
+    // CHECK THIS!! probs needs more error checking
+    int eid = 0;
+    non_leafNodeEntry * nl = (non_leafNodeEntry*)(buffer + sizeof(PageId));
+    for(int n = 0; n < currentCount; n++)
+    {
+    	if(nl->key > key)
+    		break;
+    	nl++;
+    	eid++;
+    }
+
+    memmove(nl+1, nl, (currentCount - eid) * sizeof(non_leafNodeEntry));
+
+    nl->key = key;
+    nl->pid = pid;
 
 	return 0;
 }
@@ -337,7 +351,40 @@ RC BTNonLeafNode::insert(int key, PageId pid)
  * @return 0 if successful. Return an error code if there is an error.
  */
 RC BTNonLeafNode::insertAndSplit(int key, PageId pid, BTNonLeafNode& sibling, int& midKey)
-{ return 0; }
+{ 
+
+	int currentCount = getKeyCount();
+	int midkey_eid = (currentCount - 1)/2;
+	int insert_key = 1;
+
+
+	non_leafNodeEntry* first = (non_leafNodeEntry*) (buffer+sizeof(PageId));
+	non_leafNodeEntry* nl = first + midkey_eid;
+	non_leafNodeEntry* last = first + currentCount;
+
+    if(key> nl[1].key)
+    {
+    	midkey_eid++;
+    	nl++;
+    	insert_key = 0;
+    }
+
+    midKey = nl->key;
+    sibling.initializeRoot(nl->pid, nl[1].key, nl[1].pid);
+    for(int c = midkey_eid+2; c < currentCount; c++)
+    {
+    	sibling.insert(first[c].key, first[c].pid);
+    }
+
+    memset(nl, 0, (currentCount - midkey_eid-1)* sizeof(non_leafNodeEntry));
+
+	if(insert_key == 1)
+		insert(key, pid);
+	else
+		sibling.insert(key,pid);
+
+	return 0; 
+}
 
 /*
  * Given the searchKey, find the child-node pointer to follow and
@@ -347,7 +394,24 @@ RC BTNonLeafNode::insertAndSplit(int key, PageId pid, BTNonLeafNode& sibling, in
  * @return 0 if successful. Return an error code if there is an error.
  */
 RC BTNonLeafNode::locateChildPtr(int searchKey, PageId& pid)
-{ return 0; }
+{ 
+	//check for errors
+    PageId* page = (PageId*) buffer;
+   non_leafNodeEntry * nl = (non_leafNodeEntry*) (buffer + sizeof(PageId));
+    int key_count = getKeyCount();
+    for(int c = 0; c < key_count; c++)
+    {
+    	if(nl[c].key > searchKey){
+    		pid = (c==0) ? *page : nl[c-1].pid;
+    		return 0;
+    	}
+    }
+    pid = nl[key_count-1].pid;
+    return 0;
+
+
+
+ }
 
 /*
  * Initialize the root node with (pid1, key, pid2).
@@ -358,12 +422,21 @@ RC BTNonLeafNode::locateChildPtr(int searchKey, PageId& pid)
  */
 RC BTNonLeafNode::initializeRoot(PageId pid1, int key, PageId pid2)
 {
+	//do we need to make sure buffer is empty?
+	memset(buffer, 0, PageFile::PAGE_SIZE);
+
 	// TODO: Do we need to allocate memory for this?
 	int* ptr = (int*) buffer;
 
-	*(ptr + 1) = pid1;
+	non_leafNodeEntry* nl = (non_leafNodeEntry*) (buffer+sizeof(PageId));
+
+	*ptr = pid1;
+	nl->pid = pid2;
+	nl->key = key;
+
+	/*(ptr + 1) = pid1;
 	*(ptr + 2) = key;
-	*(ptr + 3) = pid2;
+	*(ptr + 3) = pid2; */
 
 	return 0;
 }
