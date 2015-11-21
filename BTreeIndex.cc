@@ -18,6 +18,7 @@ using namespace std;
 BTreeIndex::BTreeIndex()
 {
     rootPid = -1;
+    treeHeight = 0;
 }
 
 /*
@@ -29,6 +30,29 @@ BTreeIndex::BTreeIndex()
  */
 RC BTreeIndex::open(const string& indexname, char mode)
 {
+	RC rc;
+	rc = pf.open(indexname, mode);
+	if (rc < 0) {
+		return rc;
+	}
+
+	char buf[PageFile::PAGE_SIZE];
+
+	if (pf.endPid() == 0) {
+ 		rootPid = -1;
+ 		treeHeight = 0;
+	 	int* bufPtr = (int*) buf;
+		bufPtr[0] = rootPid;
+		bufPtr[1] = treeHeight;
+		pf.write(0, buf);
+	}
+	else {
+	 	pf.read(0, buf);
+	 	int* bufPtr = (int*) buf;
+	 	rootPid = bufPtr[0];
+	 	treeHeight = bufPtr[1];
+	}
+
     return 0;
 }
 
@@ -38,6 +62,12 @@ RC BTreeIndex::open(const string& indexname, char mode)
  */
 RC BTreeIndex::close()
 {
+	RC rc;
+	rc = pf.close();
+	if (rc < 0) {
+    	return rc;
+ 	}
+
     return 0;
 }
 
@@ -85,5 +115,5 @@ RC BTreeIndex::locate(int searchKey, IndexCursor& cursor)
  */
 RC BTreeIndex::readForward(IndexCursor& cursor, int& key, RecordId& rid)
 {
-    return 0;
+	return 0;
 }
