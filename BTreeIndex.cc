@@ -82,6 +82,24 @@ RC BTreeIndex::insert(int key, const RecordId& rid)
     return 0;
 }
 
+RC BTreeIndex::locateHelper(int searchKey, IndexCursor& cursor, int counter) {
+	RC rc;
+	if (counter = treeHeight) { // leaf node
+		BTLeafNode *ln = new BTLeafNode();
+		rc = ln->locate(searchKey, cursor.eid);
+		if (rc < 0)
+			return rc;
+	}
+	else { // nonleaf node
+		rc = locateChildPtr(searchKey,cursor.pid);
+		BTNonLeafNode *n = new BTNonLeafNode();
+		if (rc < 0)
+			return rc;
+		return locateHelper(searchKey, cursor, counter+1);
+	}
+	return 0;
+}
+
 /**
  * Run the standard B+Tree key search algorithm and identify the
  * leaf node where searchKey may exist. If an index entry with
@@ -102,6 +120,14 @@ RC BTreeIndex::insert(int key, const RecordId& rid)
  */
 RC BTreeIndex::locate(int searchKey, IndexCursor& cursor)
 {
+	if(cursor.pid < 0 || cursor.pid >= pf.endPid())
+    	return RC_INVALID_CURSOR;
+
+	RC rc;
+	rc = locateHelper(searchKey, cursor, 0); // puts the cursor at the leaf node
+	if (rc < 0)
+		return rc;
+
     return 0;
 }
 
@@ -116,22 +142,19 @@ RC BTreeIndex::locate(int searchKey, IndexCursor& cursor)
 RC BTreeIndex::readForward(IndexCursor& cursor, int& key, RecordId& rid)
 {
     if(cursor.pid < 0 || cursor.pid >= pf.endPid())
-    {
     	return RC_INVALID_CURSOR;
-    }
 
     //create a new BTLeafNode
     BTLeafNode * ln = new BTLeafNode();
-    int check;
+    RC rc;
 
-    if((check = ln->read(cursor.pid, pf)) != 0)
-    		return check;
-    if((check = ln->readLEntry(cursor.eid, key, rid)) != 0)
-    	return check;
+    if((rc = ln->read(cursor.pid, pf)) != 0)
+    	return rc;
+    if((rc = ln->readLEntry(cursor.eid, key, rid)) != 0)
+    	return rc;
 
-    if(cursor.eid == ln->getKeyCount()-1)
-    {
-    	cursor.pid = ln->getNextPtr();
+    if(cursor.eid == ln->getKeyCount()-1) {
+    	cursor.pid = ln->getNextNodePtr();
     	cursor.eid = 0;
     }
     else
