@@ -6,6 +6,9 @@ string or not). We added checks to make sure we were able to open the file
 as well as the RecordFile. We also added checks for if there were errors
 parsing the lines or appending tuples to the table.
 
+For Part B:
+We attempted to create a B+Tree for the non-leaf nodes using a struct called non_leafNodeEntry.
+
 Sharon Grewal (sharonkg08@gmail.com)
 Kelly Ou (kellio94@ucla.edu)
 
