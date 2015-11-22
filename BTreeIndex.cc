@@ -30,9 +30,7 @@ BTreeIndex::BTreeIndex()
  */
 RC BTreeIndex::open(const string& indexname, char mode)
 {
-<<<<<<< HEAD
-    return pf.open(indexname, mode);
-=======
+
 	RC rc;
 	rc = pf.open(indexname, mode);
 	if (rc < 0) {
@@ -57,7 +55,6 @@ RC BTreeIndex::open(const string& indexname, char mode)
 	}
 
     return 0;
->>>>>>> refs/remotes/origin/master
 }
 
 /*
@@ -66,9 +63,6 @@ RC BTreeIndex::open(const string& indexname, char mode)
  */
 RC BTreeIndex::close()
 {
-<<<<<<< HEAD
-    return pf.close();
-=======
 	RC rc;
 	rc = pf.close();
 	if (rc < 0) {
@@ -76,9 +70,7 @@ RC BTreeIndex::close()
  	}
 
     return 0;
->>>>>>> refs/remotes/origin/master
 }
-
 /*
  * Insert (key, RecordId) pair to the index.
  * @param key[IN] the key for the value inserted into the index
