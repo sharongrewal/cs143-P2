@@ -31,6 +31,7 @@ BTreeIndex::BTreeIndex()
 RC BTreeIndex::open(const string& indexname, char mode)
 {
 	RC rc;
+	pf = PageFile(indexname, mode);
 	rc = pf.open(indexname, mode);
 	if (rc < 0) {
 		return rc;
@@ -141,7 +142,7 @@ RC BTreeIndex::locate(int searchKey, IndexCursor& cursor)
  */
 RC BTreeIndex::readForward(IndexCursor& cursor, int& key, RecordId& rid)
 {
-    if(cursor.pid < 0 || cursor.pid >= pf.endPid())
+    if (cursor.pid < 0 || cursor.pid >= pf.endPid())
     	return RC_INVALID_CURSOR;
 
     //create a new BTLeafNode
@@ -153,7 +154,8 @@ RC BTreeIndex::readForward(IndexCursor& cursor, int& key, RecordId& rid)
     if((rc = ln->readLEntry(cursor.eid, key, rid)) != 0)
     	return rc;
 
-    if(cursor.eid == ln->getKeyCount()-1) {
+    if(cursor.eid == ln->getKeyCount()-1)
+    {
     	cursor.pid = ln->getNextNodePtr();
     	cursor.eid = 0;
     }
