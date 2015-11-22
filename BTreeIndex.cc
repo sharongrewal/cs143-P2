@@ -30,7 +30,34 @@ BTreeIndex::BTreeIndex()
  */
 RC BTreeIndex::open(const string& indexname, char mode)
 {
+<<<<<<< HEAD
     return pf.open(indexname, mode);
+=======
+	RC rc;
+	rc = pf.open(indexname, mode);
+	if (rc < 0) {
+		return rc;
+	}
+
+	char buf[PageFile::PAGE_SIZE];
+
+	if (pf.endPid() == 0) {
+ 		rootPid = -1;
+ 		treeHeight = 0;
+	 	int* bufPtr = (int*) buf;
+		bufPtr[0] = rootPid;
+		bufPtr[1] = treeHeight;
+		pf.write(0, buf);
+	}
+	else {
+	 	pf.read(0, buf);
+	 	int* bufPtr = (int*) buf;
+	 	rootPid = bufPtr[0];
+	 	treeHeight = bufPtr[1];
+	}
+
+    return 0;
+>>>>>>> refs/remotes/origin/master
 }
 
 /*
@@ -39,7 +66,17 @@ RC BTreeIndex::open(const string& indexname, char mode)
  */
 RC BTreeIndex::close()
 {
+<<<<<<< HEAD
     return pf.close();
+=======
+	RC rc;
+	rc = pf.close();
+	if (rc < 0) {
+    	return rc;
+ 	}
+
+    return 0;
+>>>>>>> refs/remotes/origin/master
 }
 
 /*
@@ -51,6 +88,24 @@ RC BTreeIndex::close()
 RC BTreeIndex::insert(int key, const RecordId& rid)
 {
     return 0;
+}
+
+RC BTreeIndex::locateHelper(int searchKey, IndexCursor& cursor, int counter) {
+	RC rc;
+	if (counter = treeHeight) { // leaf node
+		BTLeafNode *ln = new BTLeafNode();
+		rc = ln->locate(searchKey, cursor.eid);
+		if (rc < 0)
+			return rc;
+	}
+	else { // nonleaf node
+		rc = locateChildPtr(searchKey,cursor.pid);
+		BTNonLeafNode *n = new BTNonLeafNode();
+		if (rc < 0)
+			return rc;
+		return locateHelper(searchKey, cursor, counter+1);
+	}
+	return 0;
 }
 
 /**
@@ -73,6 +128,14 @@ RC BTreeIndex::insert(int key, const RecordId& rid)
  */
 RC BTreeIndex::locate(int searchKey, IndexCursor& cursor)
 {
+	if(cursor.pid < 0 || cursor.pid >= pf.endPid())
+    	return RC_INVALID_CURSOR;
+
+	RC rc;
+	rc = locateHelper(searchKey, cursor, 0); // puts the cursor at the leaf node
+	if (rc < 0)
+		return rc;
+
     return 0;
 }
 
@@ -87,22 +150,19 @@ RC BTreeIndex::locate(int searchKey, IndexCursor& cursor)
 RC BTreeIndex::readForward(IndexCursor& cursor, int& key, RecordId& rid)
 {
     if(cursor.pid < 0 || cursor.pid >= pf.endPid())
-    {
     	return RC_INVALID_CURSOR;
-    }
 
     //create a new BTLeafNode
     BTLeafNode * ln = new BTLeafNode();
-    int check;
+    RC rc;
 
-    if((check = ln->read(cursor.pid, pf)) != 0)
-    		return check;
-    if((check = ln->readLEntry(cursor.eid, key, rid)) != 0)
-    	return check;
+    if((rc = ln->read(cursor.pid, pf)) != 0)
+    	return rc;
+    if((rc = ln->readLEntry(cursor.eid, key, rid)) != 0)
+    	return rc;
 
-    if(cursor.eid == ln->getKeyCount()-1)
-    {
-    	cursor.pid = ln->getNextPtr();
+    if(cursor.eid == ln->getKeyCount()-1) {
+    	cursor.pid = ln->getNextNodePtr();
     	cursor.eid = 0;
     }
     else

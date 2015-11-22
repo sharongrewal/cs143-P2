@@ -105,6 +105,7 @@ RC BTLeafNode::insertAndSplit(int key, const RecordId& rid,
 	int numKeys = getKeyCount();
 
 	// Check to make sure the node is full. Otherwise, error.
+	// Check to make sure sibling node is empty. Otherwise, error.
 	// ISSUE: Can we make the assumption that we would only want to split if the node was full?
 	if (numKeys < MAX_KEYS)
 		return RC_INVALID_FILE_FORMAT;
@@ -133,6 +134,8 @@ RC BTLeafNode::insertAndSplit(int key, const RecordId& rid,
 
 	// Set sibling's pointer to next sibling node.
 	sibling.setNextNodePtr(getNextNodePtr());
+	// Set current node's pointer to new sibling node.
+	setNextNodePtr(endPid()-1);
 
 	// Insert new (key, rid) pair into correct position
 	// ISSUE: Do we need to push up values to parent node?
@@ -298,8 +301,8 @@ int BTNonLeafNode::getKeyCount()
 	// Counts number of keys in node.
 	for (int pid = 0; pid < MAX_KEYS; pid++) {
 		rc = readNLEntry(pid, key);
-		if (key < 0)
-			break;
+		if (key < 0) // TODO: THIS ASSUMES THAT KEYS CAN'T BE NEGATIVE
+			break; // NEED TO FIGURE OUT HOW TO MARK KEYS AS NON-EXISTENT
 		numKeys++;
 	}
 
