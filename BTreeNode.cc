@@ -168,8 +168,12 @@ RC BTLeafNode::locate(int searchKey, int& eid)
 		rc = readLEntry(eid, key, rid);
 		if (rc < 0)
 			return rc;
-		else if (key >= searchKey)
+		else if (key == searchKey)
 			return 0;
+		else if (key > searchKey) {
+			eid--;
+			return RC_NO_SUCH_RECORD;
+		}
 	}
 
 	eid = -1;

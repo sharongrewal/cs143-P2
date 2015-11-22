@@ -72,6 +72,91 @@ RC BTreeIndex::close()
     return 0;
 }
 
+RC BTreeIndex::insertHelper(RecordId& rid, int key, PageId pid, int &new_key, PageId &new_pid, int curr_height)
+{
+	RC rc;
+
+	if (curr_height < treeHeight)
+	{
+		BTNonLeafNode *nln = new BTNonLeafNode;
+		rc = nln->read(pid, pf);
+		if (rc < 0)
+			return rc;
+
+		PageId next_pid;
+		rc = nln->locateChildPtr(key, next_pid);
+		if (rc < 0)
+			return rc;
+
+		int new_key;
+		PageId new_pid;
+		rc = insertHelper(rid, key, next_pid, new_key, new_pid, curr_height+1);
+		if (rc == RC_NODE_FULL) {
+			rc = nln->insert(new_key, new_pid);
+
+			if (rc == 0) {
+				rc = nln->write(pid, pf);
+				return rc;
+			}
+			else if (rc == RC_NODE_FULL) {
+				int midKey;
+				BTNonLeafNode *sib = new BTNonLeafNode;
+
+				rc = nln->insertAndSplit(new_key, new_pid, *sib, midKey);
+				if (rc < 0)
+					return rc;
+				new_pid = pf.endPid();
+
+				rc = sib->write(new_pid, pf);
+				rc = nln->write(pid, pf);
+				if (rc < 0)
+					return rc;
+
+				new_key = midKey;
+			}
+			else return rc;
+
+		}
+		else return rc;
+	}
+	else if (curr_height == treeHeight) // leaf node
+	{
+		BTLeafNode *ln = new BTLeafNode;
+		ln->read(pid, pf);
+
+		rc = ln->insert(key, rid);
+		if (rc == 0) {
+			ln->write(pid, pf);
+			return 0;
+		}
+
+		BTLeafNode *sib = new BTLeafNode;
+		int sib_key;
+		rc = ln->insertAndSplit(key, rid, *sib, sib_key);
+		if (rc < 0)
+			return rc;
+
+		PageId sib_pid = pf.endPid();
+		rc = sib->write(sib_pid, pf);
+		if (rc < 0)
+			return rc;
+
+		ln->setNextNodePtr(sib_pid);
+		rc = ln->write(pid, pf);
+		if (rc < 0)
+			return rc;
+
+		return 0;
+
+	}
+
+	//rc = insert(key, cursor.pid); //nonleafnode
+	//if (rc < 0)
+	//	return rc;
+	//insertAndSplit;
+	//locate;
+}
+
 /*
  * Insert (key, RecordId) pair to the index.
  * @param key[IN] the key for the value inserted into the index
@@ -80,23 +165,91 @@ RC BTreeIndex::close()
  */
 RC BTreeIndex::insert(int key, const RecordId& rid)
 {
+	RC rc;
+	// If there are no nodes in the tree
+	if (treeHeight == 0) {
+		BTLeafNode *ln = new BTLeafNode;
+		rc = ln->insert(key, rid);
+		if (rc < 0)
+			return rc;
+	
+		rootPid = 1;
+		rc = ln->write(rootPid, pf);
+		if (rc < 0)
+			return rc;
+
+		treeHeight = 1;
+	}
+	else {
+		int new_key, new_pid;
+		rc = insertHelper(rid, key, rootPid, new_key, new_pid, 1);
+
+		// If the node had to be split then should initialize a new root
+		if (rc == RC_NODE_FULL)
+		{
+			BTNonLeafNode *new_root = new BTNonLeafNode;
+			rc = new_root->initializeRoot(rootPid, new_key, new_pid);
+			if (rc < 0)
+				return rc;
+
+			rootPid = pf.endPid();
+			rc = new_root->write(rootPid, pf);
+			if (rc < 0)
+				return rc;
+
+			treeHeight++;
+
+			return 0;
+		}
+
+		
+	}
+
+	/*
+	IndexCursor cursor;
+	RC rc;
+	rc = locate(key, cursor);
+	if (rc < 0)
+		return rc;
+
+	insertHelper(key, rid, cursor.pid, int &new_key, PageId &new_pid, int curr_height)
+
+
+	BTLeafNode ln;
+	//rc = *(cursor.pid)->insert(key, rid); //leafnode
+	if (rc == 0)
+		return 0;
+	int sib_key;
+	BTLeafNode sib_ln;
+	ln.insertAndSplit(key, rid, sib_ln, sib_key);
+	//get midkey
+
+	int counter = 1;
+	locateHelper(key, cursor, 0, treeHeight-counter);
+	while (rc != 0 && counter <= treeHeight) {
+		insert(key, cursor.pid); //nonleafnode
+		//insertsplit;
+		//locate;
+	}
+	*/
+
     return 0;
 }
 
-RC BTreeIndex::locateHelper(int searchKey, IndexCursor& cursor, int counter) {
+RC BTreeIndex::locateHelper(int searchKey, IndexCursor& cursor, int counter, int treeHeight) {
 	RC rc;
-	if (counter = treeHeight) { // leaf node
+	if (counter == treeHeight) { // leaf node
 		BTLeafNode *ln = new BTLeafNode();
 		rc = ln->locate(searchKey, cursor.eid);
 		if (rc < 0)
 			return rc;
 	}
 	else { // nonleaf node
-		rc = locateChildPtr(searchKey,cursor.pid);
 		BTNonLeafNode *n = new BTNonLeafNode();
+		rc = n->locateChildPtr(searchKey,cursor.pid);
 		if (rc < 0)
 			return rc;
-		return locateHelper(searchKey, cursor, counter+1);
+		return locateHelper(searchKey, cursor, counter+1, treeHeight);
 	}
 	return 0;
 }
@@ -121,11 +274,11 @@ RC BTreeIndex::locateHelper(int searchKey, IndexCursor& cursor, int counter) {
  */
 RC BTreeIndex::locate(int searchKey, IndexCursor& cursor)
 {
-	if(cursor.pid < 0 || cursor.pid >= pf.endPid())
-    	return RC_INVALID_CURSOR;
+	/*if(cursor.pid < 0 || cursor.pid >= pf.endPid())
+    	return RC_INVALID_CURSOR;*/
 
 	RC rc;
-	rc = locateHelper(searchKey, cursor, 0); // puts the cursor at the leaf node
+	rc = locateHelper(searchKey, cursor, 0, treeHeight); // puts the cursor at the leaf node
 	if (rc < 0)
 		return rc;
 
