@@ -72,7 +72,7 @@ RC BTreeIndex::close()
     return 0;
 }
 
-RC BTreeIndex::insertHelper(RecordId& rid, int key, PageId pid, int &new_key, PageId &new_pid, int curr_height)
+RC BTreeIndex::insertHelper(const RecordId& rid, int key, PageId pid, int &new_key, PageId &new_pid, int curr_height)
 {
 	RC rc;
 
@@ -181,7 +181,8 @@ RC BTreeIndex::insert(int key, const RecordId& rid)
 		treeHeight = 1;
 	}
 	else {
-		int new_key, new_pid;
+		int new_key;
+		PageId new_pid;
 		rc = insertHelper(rid, key, rootPid, new_key, new_pid, 1);
 
 		// If the node had to be split then should initialize a new root

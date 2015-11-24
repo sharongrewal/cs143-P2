@@ -135,7 +135,7 @@ RC BTLeafNode::insertAndSplit(int key, const RecordId& rid,
 	// Set sibling's pointer to next sibling node.
 	sibling.setNextNodePtr(getNextNodePtr());
 	// Set current node's pointer to new sibling node.
-	setNextNodePtr(endPid()-1);
+	// setNextNodePtr(endPid()-1);
 
 	// Insert new (key, rid) pair into correct position
 	// ISSUE: Do we need to push up values to parent node?
