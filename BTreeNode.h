@@ -33,6 +33,10 @@
  */
 class BTLeafNode {
   public:
+
+    BTLeafNode();
+    ~BTLeafNode();
+
     // size of a leaf node entry
     static const int ENTRY_SIZE = sizeof(RecordId) + sizeof(int);
     // number of record/key pairs per leaf node
@@ -133,6 +137,9 @@ class BTLeafNode {
  */
 class BTNonLeafNode {
   public:
+
+    BTNonLeafNode();
+    ~BTNonLeafNode();
 
     // size of a non-leaf node entry
     static const int ENTRY_SIZE = 2 * sizeof(int);

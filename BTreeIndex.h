@@ -58,7 +58,7 @@ class BTreeIndex {
    */
   RC insert(int key, const RecordId& rid);
 
-  RC locateHelper(int searchKey, IndexCursor& cursor, int counter);
+  RC insertHelper(const RecordId& rid, int key, PageId pid, int &new_key, PageId &new_pid, int curr_height);
 
   /**
    * Run the standard B+Tree key search algorithm and identify the
@@ -79,6 +79,8 @@ class BTreeIndex {
    * @return 0 if searchKey is found. Othewise, an error code
    */
   RC locate(int searchKey, IndexCursor& cursor);
+
+  RC locateHelper(int searchKey, IndexCursor& cursor, int counter, int treeHeight);
 
   /**
    * Read the (key, rid) pair at the location specified by the index cursor,

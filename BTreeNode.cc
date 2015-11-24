@@ -2,6 +2,10 @@
 
 using namespace std;
 
+BTLeafNode::BTLeafNode() {
+	memset(buffer, 0, PageFile::PAGE_SIZE);
+}
+
 /*
  * Read the content of the node from the page pid in the PageFile pf.
  * @param pid[IN] the PageId to read
@@ -135,7 +139,7 @@ RC BTLeafNode::insertAndSplit(int key, const RecordId& rid,
 	// Set sibling's pointer to next sibling node.
 	sibling.setNextNodePtr(getNextNodePtr());
 	// Set current node's pointer to new sibling node.
-	setNextNodePtr(endPid()-1);
+	// setNextNodePtr(endPid()-1);
 
 	// Insert new (key, rid) pair into correct position
 	// ISSUE: Do we need to push up values to parent node?
@@ -168,8 +172,12 @@ RC BTLeafNode::locate(int searchKey, int& eid)
 		rc = readLEntry(eid, key, rid);
 		if (rc < 0)
 			return rc;
-		else if (key >= searchKey)
+		else if (key == searchKey)
 			return 0;
+		else if (key > searchKey) {
+			eid--;
+			return RC_NO_SUCH_RECORD;
+		}
 	}
 
 	eid = -1;
@@ -241,6 +249,10 @@ RC BTLeafNode::setNextNodePtr(PageId pid)
 	*p = pid;
 
 	return 0;
+}
+
+BTNonLeafNode::BTNonLeafNode() {
+	memset(buffer, 0, PageFile::PAGE_SIZE);
 }
 
 /*
