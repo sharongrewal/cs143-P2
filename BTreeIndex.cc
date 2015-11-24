@@ -17,7 +17,10 @@ using namespace std;
  */
 BTreeIndex::BTreeIndex()
 {
+    //set the rootPid to -1
     rootPid = -1;
+    
+    //set treeHeight to 0
     treeHeight = 0;
 }
 
@@ -32,25 +35,40 @@ RC BTreeIndex::open(const string& indexname, char mode)
 {
 
 	RC rc;
+    //create an instance of PageFile
 	pf = PageFile(indexname, mode);
-	rc = pf.open(indexname, mode);
-	if (rc < 0) {
-		return rc;
-	}
 
+    //open the PageFile
+	rc = pf.open(indexname, mode);
+
+    //check if it opened
+	if (rc < 0) {
+		return rc; 
+	}
+    //create a buffer with the size of PAGE_SIZE
 	char buf[PageFile::PAGE_SIZE];
 
+    //check if endPid is 0
 	if (pf.endPid() == 0) {
+
+        //set rootPid to -1
  		rootPid = -1;
+
+        //set treeHeight back to 0
  		treeHeight = 0;
 	 	int* bufPtr = (int*) buf;
 		bufPtr[0] = rootPid;
 		bufPtr[1] = treeHeight;
+
+        //write to to buffer
 		pf.write(0, buf);
 	}
 	else {
+        //read to buffer
 	 	pf.read(0, buf);
 	 	int* bufPtr = (int*) buf;
+
+        //set rootPid & treeHeight to bufPtr
 	 	rootPid = bufPtr[0];
 	 	treeHeight = bufPtr[1];
 	}
@@ -65,9 +83,10 @@ RC BTreeIndex::open(const string& indexname, char mode)
 RC BTreeIndex::close()
 {
 	RC rc;
+    //close the pageFile
 	rc = pf.close();
 	if (rc < 0) {
-    	return rc;
+    	return rc; //check if it closed properly
  	}
 
     return 0;
@@ -78,42 +97,73 @@ RC BTreeIndex::insertHelper(const RecordId& rid, int key, PageId pid, int &new_k
 {
 	RC rc;
 
-	if (curr_height < treeHeight)
+    //check if nonleaf node
+	if (curr_height < treeHeight) 
 	{
+        //create an instance of BTNonLeafNode
 		BTNonLeafNode *nln = new BTNonLeafNode;
+
+        //read to pageFile
 		rc = nln->read(pid, pf);
 		if (rc < 0)
-			return rc;
+			return rc; 
+        //check if read succeeded
 
+        //locate the child of that non-leaf node
 		PageId next_pid;
 		rc = nln->locateChildPtr(key, next_pid);
+
+        //check if locateChildPtr returned something
 		if (rc < 0)
-			return rc;
+			return rc; 
 
 		int new_key;
 		PageId new_pid;
+
+        //use insertHelper
 		rc = insertHelper(rid, key, next_pid, new_key, new_pid, curr_height+1);
-		if (rc == RC_NODE_FULL) {
+
+        //check if the node is full 
+        //if full --> use insertAnd Split
+        //otherwise just write to the pagefile after inserting
+        if (rc == RC_NODE_FULL) {
+            //insert the new key and pid
 			rc = nln->insert(new_key, new_pid);
 
 			if (rc == 0) {
+                //if insert is successful
+                //write the node into pagefile
 				rc = nln->write(pid, pf);
+
 				return rc;
 			}
 			else if (rc == RC_NODE_FULL) {
 				int midKey;
+                //create a new nonleaf node
+                //this will be used for sibling
 				BTNonLeafNode *sib = new BTNonLeafNode;
 
+                //inser the new key & pid, sibling, midKey
 				rc = nln->insertAndSplit(new_key, new_pid, *sib, midKey);
-				if (rc < 0)
+
+                //if insert&split is successful
+				if (rc < 0) 
 					return rc;
+
+                //set new_pid to the last pid
 				new_pid = pf.endPid();
 
+                //write the sibling into pagefile
 				rc = sib->write(new_pid, pf);
+
+                //write the non leaf node to pagefile
 				rc = nln->write(pid, pf);
+
+                //if the write is successful
 				if (rc < 0)
 					return rc;
 
+                    //set the new key to midKey
 				new_key = midKey;
 			}
 			else return rc;
@@ -123,28 +173,51 @@ RC BTreeIndex::insertHelper(const RecordId& rid, int key, PageId pid, int &new_k
 	}
 	else if (curr_height == treeHeight) // leaf node
 	{
+        //create new leafNode
 		BTLeafNode *ln = new BTLeafNode;
+
+        //read this node
 		ln->read(pid, pf);
 
+        //insert the key&rid
 		rc = ln->insert(key, rid);
+
 		if (rc == 0) {
+            //if the insert is successful
+            //then write
 			ln->write(pid, pf);
 			return 0;
 		}
 
+            //otherwise create a sibling
 		BTLeafNode *sib = new BTLeafNode;
 		int sib_key;
+
+        //use insert&split
 		rc = ln->insertAndSplit(key, rid, *sib, sib_key);
+
+        //check if insert&split is successful
 		if (rc < 0)
 			return rc;
 
+            //set sibling pid to endPid
 		PageId sib_pid = pf.endPid();
+
+        //write the pid and pagefile
 		rc = sib->write(sib_pid, pf);
+
+        //check if write is successful
 		if (rc < 0)
 			return rc;
 
+        //is this step necessary?
+        //doesn't insert&split take care of setting the next pointer?
 		ln->setNextNodePtr(sib_pid);
+
+        //write to disk
 		rc = ln->write(pid, pf);
+
+        //check for write success
 		if (rc < 0)
 			return rc;
 
@@ -169,18 +242,31 @@ RC BTreeIndex::insertHelper(const RecordId& rid, int key, PageId pid, int &new_k
 RC BTreeIndex::insert(int key, const RecordId& rid)
 {
 	RC rc;
+
 	// If there are no nodes in the tree
 	if (treeHeight == 0) {
+
+        //create a new instance of leafnode
 		BTLeafNode *ln = new BTLeafNode;
+
+        //insert this key&rid
 		rc = ln->insert(key, rid);
+
+        //check if insert is successful
 		if (rc < 0)
 			return rc;
 	
+        //set the rootPid to 1
 		rootPid = 1;
+
+        //write this new rootPid 
 		rc = ln->write(rootPid, pf);
+
+        //check if write is successful
 		if (rc < 0)
 			return rc;
 
+        //set treeHeight to 1
 		treeHeight = 1;
 	}
 	else {
@@ -191,13 +277,23 @@ RC BTreeIndex::insert(int key, const RecordId& rid)
 		// If the node had to be split then should initialize a new root
 		if (rc == RC_NODE_FULL)
 		{
+            //new instance of nonleafnode
 			BTNonLeafNode *new_root = new BTNonLeafNode;
+
+            //initialize the new root
 			rc = new_root->initializeRoot(rootPid, new_key, new_pid);
+
+            //check if initialization is successful
 			if (rc < 0)
 				return rc;
 
+                //set rootPid to the end
 			rootPid = pf.endPid();
+
+            //write to disk
 			rc = new_root->write(rootPid, pf);
+
+            //check if write is successful
 			if (rc < 0)
 				return rc;
 
@@ -243,16 +339,21 @@ RC BTreeIndex::insert(int key, const RecordId& rid)
 RC BTreeIndex::locateHelper(int searchKey, IndexCursor& cursor, int counter, int treeHeight) {
 	RC rc;
 	if (counter == treeHeight) { // leaf node
+        //new instance of LeafNode
 		BTLeafNode *ln = new BTLeafNode();
 		rc = ln->locate(searchKey, cursor.eid);
+        //check for locate's success
 		if (rc < 0)
 			return rc;
 	}
 	else { // nonleaf node
+        //new instance of nonleafnode
 		BTNonLeafNode *n = new BTNonLeafNode();
 		rc = n->locateChildPtr(searchKey,cursor.pid);
+        //check if locateChildPtr succeessful
 		if (rc < 0)
 			return rc;
+        //otherwise just keep going
 		return locateHelper(searchKey, cursor, counter+1, treeHeight);
 	}
 	return 0;
@@ -282,6 +383,7 @@ RC BTreeIndex::locate(int searchKey, IndexCursor& cursor)
     	return RC_INVALID_CURSOR;*/
 
 	RC rc;
+    //call the recursive function that we made
 	rc = locateHelper(searchKey, cursor, 0, treeHeight); // puts the cursor at the leaf node
 	if (rc < 0)
 		return rc;
@@ -299,6 +401,7 @@ RC BTreeIndex::locate(int searchKey, IndexCursor& cursor)
  */
 RC BTreeIndex::readForward(IndexCursor& cursor, int& key, RecordId& rid)
 {
+    //check if valid cursor
     if (cursor.pid < 0 || cursor.pid >= pf.endPid())
     	return RC_INVALID_CURSOR;
 
@@ -306,14 +409,20 @@ RC BTreeIndex::readForward(IndexCursor& cursor, int& key, RecordId& rid)
     BTLeafNode * ln = new BTLeafNode();
     RC rc;
 
+        //check if read successful
     if((rc = ln->read(cursor.pid, pf)) != 0)
     	return rc;
+    //check if readLEntry successful
     if((rc = ln->readLEntry(cursor.eid, key, rid)) != 0)
     	return rc;
 
+    //check eid against the getKeyCount
     if(cursor.eid == ln->getKeyCount()-1)
     {
+        //set the nextNodePtr
     	cursor.pid = ln->getNextNodePtr();
+        //set the cursor eid to 0 again
+        //otherwise just increment eid
     	cursor.eid = 0;
     }
     else
