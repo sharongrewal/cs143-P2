@@ -2,6 +2,10 @@
 
 using namespace std;
 
+BTLeafNode::BTLeafNode() {
+	memset(buffer, 0, PageFile::PAGE_SIZE);
+}
+
 /*
  * Read the content of the node from the page pid in the PageFile pf.
  * @param pid[IN] the PageId to read
@@ -245,6 +249,10 @@ RC BTLeafNode::setNextNodePtr(PageId pid)
 	*p = pid;
 
 	return 0;
+}
+
+BTNonLeafNode::BTNonLeafNode() {
+	memset(buffer, 0, PageFile::PAGE_SIZE);
 }
 
 /*
