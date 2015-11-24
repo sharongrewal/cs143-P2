@@ -72,8 +72,7 @@ RC BTreeIndex::close()
 
     return 0;
 }
-<<<<<<< HEAD
-=======
+
 
 RC BTreeIndex::insertHelper(const RecordId& rid, int key, PageId pid, int &new_key, PageId &new_pid, int curr_height)
 {
@@ -160,7 +159,7 @@ RC BTreeIndex::insertHelper(const RecordId& rid, int key, PageId pid, int &new_k
 	//locate;
 }
 
->>>>>>> refs/remotes/origin/master
+
 /*
  * Insert (key, RecordId) pair to the index.
  * @param key[IN] the key for the value inserted into the index
