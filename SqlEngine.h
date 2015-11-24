@@ -13,6 +13,7 @@
 #include <vector>
 #include "Bruinbase.h"
 #include "RecordFile.h"
+#include "BTreeIndex.h"
 
 /**
  * data structure to represent a condition in the WHERE clause
@@ -48,7 +49,9 @@ class SqlEngine {
    * @param conds[IN] list of conditions in the WHERE clause
    * @return error code. 0 if no error
    */
-  static RC select(int attr, const std::string& table, const std::vector<SelCond>& conds);
+  static RC select(int attr, const std::string& table, const std::vector<SelCond>& cond);
+
+  static RC selectHelper(BTreeIndex& btree, int attr, const string& table, const vector<SelCond>& cond);
 
   /**
    * load a table from a load file.

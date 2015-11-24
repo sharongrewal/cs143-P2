@@ -35,37 +35,51 @@ RC SqlEngine::run(FILE* commandline)
   return 0;
 }
 
-RC SqlEngine::selectHelper(BTreeNode &btree, int attr, const string& table, const vector<SelCond>& cond)
+
+/*
+
+The select() function is called when the user issues the SELECT command.
+
+The attribute in the SELECT clause is passed as the first input parameter attr
+(attr=1 means "key" attribute, attr=2 means "value" attribute, attr=3 means "*",
+and attr=4 means "COUNT(*)").
+
+The table name in the FROM clause is passed as the second input parameter table.
+
+The conditions listed in the WHERE clause are passed as the input parameter conds
+
+*/
+
+RC SqlEngine::selectHelper(BTreeIndex& btree, int attr, const string& table, const vector<SelCond>& cond)
 {
 
   RecordFile rf;   // RecordFile containing the table
   RecordId   rid;  // record cursor for table scanning
+  IndexCursor cursor;
 
-  RC     rc;
-  int    key;     
-  string value;
-  int    count;
-  int    diff;
+  RC        rc;
+  int       key;     
+  string    value;
+  int       curr_key;
+  RecordId  curr_rid;
+  int       count    =  0;
+  int       diff;
+  int       low      = -1;
+  int       high     = -1;
+  int       equal    = -1;
+  int       keyComp  = -1;
 
 
   if ((rc = btree.read(rid, key, value)) < 0) {
-      fprintf(stderr, "Error: while reading a tuple from table %s\n", table.c_str());
-      goto exit_select;
-    }
+    fprintf(stderr, "Error: while reading a tuple from table %s\n", table.c_str());
+    goto exit_select;
+  }
 
-    // check the conditions on the tuple
-    for (unsigned i = 0; i < cond.size(); i++) {
-      // compute the difference between the tuple value and the condition value
-      switch (cond[i].attr) {
-      case 1:
-        diff = key - atoi(cond[i].value);
-        break;
-      case 2:
-        diff = strcmp(value.c_str(), cond[i].value);
-        break;
-      }
-
-      // skip the tuple if any condition is not met
+  // check the conditions on the tuple
+  for (unsigned i = 0; i < cond.size(); i++) {
+    // compute the difference between the tuple value and the condition value
+    switch (cond[i].attr) {
+    case 1:
       switch (cond[i].comp) {
       case SelCond::EQ:
         if (diff != 0) goto next_tuple;
@@ -74,39 +88,74 @@ RC SqlEngine::selectHelper(BTreeNode &btree, int attr, const string& table, cons
         if (diff == 0) goto next_tuple;
         break;
       case SelCond::GT:
-        if (diff <= 0) goto next_tuple;
+        keyComp = atoi(cond[i].value);
+        if (keyComp >= low || low == -1) {
+          low = keyComp;
+        }
         break;
       case SelCond::LT:
-        if (diff >= 0) goto next_tuple;
+        keyComp = atoi(cond[i].value);
+        if (keyComp <= high || high == -1) {
+          high = keyComp;
+        }
         break;
       case SelCond::GE:
-        if (diff < 0) goto next_tuple;
+        keyComp = atoi(cond[i].value);
+        if (keyComp > low || low == -1) {
+          low = keyComp;
+        }
         break;
       case SelCond::LE:
-        if (diff > 0) goto next_tuple;
+        keyComp = atoi(cond[i].value);
+        if (keyComp < high || high == -1) {
+          high = keyComp;
+        }
         break;
       }
+      break;
+    case 2:
+      diff = strcmp(value.c_str(), cond[i].value);
+      break;
     }
+  }
 
+  // cursor should be placed at lowest possible value, given conditions
+  btree.locate(low, cursor);
+
+  if ((rc = rf.open(table + ".tbl", 'r')) < 0) {
+    fprintf(stderr, "Error: table %s does not exist\n", table.c_str());
+    return rc;
+  }
+
+  // Read the tuples until out of the range
+  while (rc == 0 && (high == -1 || readKey <= high)) {
+    // if attr == 4, then we only need to get count
+    if(attr != 4) {
+      if ((rc = rf.read(curr_rid, readKey, value)) < 0) {
+        fprintf(stderr, "Error: while reading a tuple from table %s\n", table.c_str());
+        goto exit_select;
+      }
+    }
     // the condition is met for the tuple. 
     // increase matching tuple counter
     count++;
+  }
 
-    // print the tuple 
-    switch (attr) {
-    case 1:  // SELECT key
-      fprintf(stdout, "%d\n", key);
-      break;
-    case 2:  // SELECT value
-      fprintf(stdout, "%s\n", value.c_str());
-      break;
-    case 3:  // SELECT *
-      fprintf(stdout, "%d '%s'\n", key, value.c_str());
-      break;
-    }
+  // print the tuple 
+  switch (attr) {
+  case 1:  // SELECT key
+    fprintf(stdout, "%d\n", key);
+    break;
+  case 2:  // SELECT value
+    fprintf(stdout, "%s\n", value.c_str());
+    break;
+  case 3:  // SELECT *
+    fprintf(stdout, "%d '%s'\n", key, value.c_str());
+    break;
+  }
 
-    // move to the next tuple
-    next_tuple:
+  // move to the next tuple
+  next_tuple:
 }
 
 RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
@@ -120,9 +169,6 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
   int    count;
   int    diff;
 
-  ////////////////////////////////////
-  ////////////////////////////////////
-
   BTreeIndex btree;
 
     // open the index file
@@ -130,9 +176,6 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
     selectHelper(btree, attr, table, cond);
     return 0;
   }
-
-  ////////////////////////////////////
-  ////////////////////////////////////
 
   // open the table file
   if ((rc = rf.open(table + ".tbl", 'r')) < 0) {
