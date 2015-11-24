@@ -14,6 +14,7 @@
 #include <fstream>
 #include "Bruinbase.h"
 #include "SqlEngine.h"
+#include "BTreeIndex.h"
 
 using namespace std;
 
@@ -66,8 +67,8 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
       // compute the difference between the tuple value and the condition value
       switch (cond[i].attr) {
       case 1:
-	diff = key - atoi(cond[i].value);
-	break;
+        diff = key - atoi(cond[i].value);
+        break;
       case 2:
 	diff = strcmp(value.c_str(), cond[i].value);
 	break;
@@ -170,6 +171,15 @@ RC SqlEngine::load(const string& table, const string& loadfile, bool index)
  {	fprintf(stderr, "Error opening record file for table %s\n", table.c_str());
         return rc;
  }
+
+  BTreeIndex tree_index;
+  if (index == true) {
+    rc = tree_index.open(table + ".idx", 'w');
+    if (rc < 0) {
+      tree_index.close();
+      return rc;
+    }
+  }
  
  while(!curr_file.eof()) //while not end of file
 {
@@ -179,19 +189,25 @@ RC SqlEngine::load(const string& table, const string& loadfile, bool index)
      break; //move to next non empty string
 
   //start to parse the file otherwise
-  if((rc = parseLoadLine(line_buffer, key, value)) != 0)
-  {
-	fprintf(stderr, "Error parsing from loadfile %s at line %i\n", 
+  if((rc = parseLoadLine(line_buffer, key, value)) != 0) {
+    fprintf(stderr, "Error parsing from loadfile %s at line %i\n", 
           loadfile.c_str(), line_num);
- }
-
- //append the line 
- if((rc = rec_file.append(key, value, rid)) != 0)
- {
-	fprintf(stderr, "Error appending to table %s\n", table.c_str());
-        break;
-
- }
+  }
+  else {
+  //append the line 
+    if((rc = rec_file.append(key, value, rid)) != 0) {
+      fprintf(stderr, "Error appending to table %s\n", table.c_str());
+      break;
+    }
+    if (index == true) {
+      rc = tree_index.insert(key, rid);
+      if (rc < 0) {
+        fprintf(stderr, "Error inserting data into index for table %s\n", table.c_str());
+        tree_index.close();
+        return rc;
+      }
+    }
+  }
 	line_num++; //increment line_num
 }
 
