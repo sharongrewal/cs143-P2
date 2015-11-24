@@ -51,7 +51,7 @@ class SqlEngine {
    */
   static RC select(int attr, const std::string& table, const std::vector<SelCond>& cond);
 
-  static RC selectHelper(BTreeIndex& btree, int attr, const string& table, const vector<SelCond>& cond);
+  static RC selectHelper(BTreeIndex& btree, int attr, const std::string& table, const std::vector<SelCond>& cond);
 
   /**
    * load a table from a load file.
