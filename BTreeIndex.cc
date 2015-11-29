@@ -134,8 +134,10 @@ RC BTreeIndex::insertHelper(const RecordId& rid, int key, PageId pid, int &new_k
 		BTLeafNode *sib = new BTLeafNode;
 		int sib_key;
 		rc = ln->insertAndSplit(key, rid, *sib, sib_key);
-		if (rc < 0)
+		if (rc < 0) {
+			fprintf(stderr, "insertAndSplit failed\n");
 			return rc;
+		}
 
 		PageId sib_pid = pf.endPid();
 		rc = sib->write(sib_pid, pf);
