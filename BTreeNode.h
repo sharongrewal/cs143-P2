@@ -38,10 +38,10 @@ class BTLeafNode {
     ~BTLeafNode();
 
     // size of a leaf node entry
-    static const int ENTRY_SIZE = sizeof(RecordId) + sizeof(int);
+    static const int ENTRY_SIZE = sizeof(leafNodeEntry);
     // number of record/key pairs per leaf node
     //does it need to be a pointer to PageId?
-    static const int MAX_KEYS = (PageFile::PAGE_SIZE - sizeof(PageId)) / ENTRY_SIZE;
+    static const int MAX_KEYS = (PageFile::PAGE_SIZE - sizeof(PageId)) / sizeof(leafNodeEntry);
 
     /**
     * Read the content of the node from the page pid in the PageFile pf.
@@ -142,9 +142,9 @@ class BTNonLeafNode {
     ~BTNonLeafNode();
 
     // size of a non-leaf node entry
-    static const int ENTRY_SIZE = 2 * sizeof(int);
+    static const int ENTRY_SIZE = sizeof(non_leafNodeEntry);
     // number of pid/key pairs per non-leaf node
-    static const int MAX_KEYS = (PageFile::PAGE_SIZE - sizeof(PageId)) / ENTRY_SIZE;
+    static const int MAX_KEYS = (PageFile::PAGE_SIZE - sizeof(PageId)) / sizeof(non_leafNodeEntry);
 
     /**
     * Read the content of the node from the page pid in the PageFile pf.

@@ -34,7 +34,7 @@ typedef struct {
 class BTreeIndex {
  public:
   BTreeIndex();
-
+  BTreeIndex(const std::string& indexname, char mode);
   /**
    * Open the index file in read or write mode.
    * Under 'w' mode, the index file should be created if it does not exist.
@@ -80,7 +80,7 @@ class BTreeIndex {
    */
   RC locate(int searchKey, IndexCursor& cursor);
 
-  RC locateHelper(int searchKey, IndexCursor& cursor, int counter, int treeHeight);
+  RC locateHelper(int searchKey, IndexCursor& cursor, int counter, int treeHeight, PageId pid);
 
   /**
    * Read the (key, rid) pair at the location specified by the index cursor,

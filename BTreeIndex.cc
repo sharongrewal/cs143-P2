@@ -24,6 +24,41 @@ BTreeIndex::BTreeIndex()
     treeHeight = 0;
 }
 
+BTreeIndex::BTreeIndex(const string& indexname, char mode)
+{
+	treeHeight = 0;
+	pf = PageFile(indexname, mode);
+	
+	char buf[PageFile::PAGE_SIZE];
+	bzero(buf, PageFile::PAGE_SIZE);
+	int * b_ptr = (int*) buf;
+
+	if(mode == 'r')
+	{
+		pf.read(0, buf);
+		rootPid = *b_ptr;
+		treeHeight = b_ptr[1];
+	}
+	else{
+		if(pf.endPid() == 0)
+		{	
+			rootPid = 1;
+			*b_ptr = rootPid;
+			*(b_ptr+1) = treeHeight;
+			pf.write(0, buf);
+			BTLeafNode* root = new BTLeafNode();
+			root->setNextNodePtr(-1);
+			root->write(rootPid, pf);
+			
+		}
+		else{
+			pf.read(0, buf);
+			rootPid = *b_ptr;
+			treeHeight = b_ptr[1];
+		}
+	}
+}
+
 /*
  * Open the index file in read or write mode.
  * Under 'w' mode, the index file should be created if it does not exist.
@@ -71,7 +106,18 @@ RC BTreeIndex::open(const string& indexname, char mode)
         //set rootPid & treeHeight to bufPtr
 	 	rootPid = bufPtr[0];
 	 	treeHeight = bufPtr[1];
+//	pf = PageFile(indexname, mode);
+
+
+    //open the PageFile
+	rc = pf.open(indexname, mode);
+
+    //check if it opened
+	if (rc < 0) {
+		return rc; 
+
 	}
+    
 
     return 0;
 }
@@ -338,11 +384,14 @@ RC BTreeIndex::insert(int key, const RecordId& rid)
     return 0;
 }
 
-RC BTreeIndex::locateHelper(int searchKey, IndexCursor& cursor, int counter, int treeHeight) {
+RC BTreeIndex::locateHelper(int searchKey, IndexCursor& cursor, int counter, int treeHeight, PageId pid) {
 	RC rc;
 	if (counter == treeHeight) { // leaf node
         //new instance of LeafNode
+		cursor.pid = pid;
+
 		BTLeafNode *ln = new BTLeafNode();
+		if((rc = ln->read(pid, pf)) < 0) return rc;
 		rc = ln->locate(searchKey, cursor.eid);
         //check for locate's success
 		if (rc < 0)
@@ -351,12 +400,18 @@ RC BTreeIndex::locateHelper(int searchKey, IndexCursor& cursor, int counter, int
 	else { // nonleaf node
         //new instance of nonleafnode
 		BTNonLeafNode *n = new BTNonLeafNode();
-		rc = n->locateChildPtr(searchKey,cursor.pid);
+	
+		if((rc = n->read(pid,pf)) < 0) return rc;
+		
+		PageId c_pid;
+		rc = n->locateChildPtr(searchKey,c_pid);
+
         //check if locateChildPtr succeessful
 		if (rc < 0)
 			return rc;
         //otherwise just keep going
-		return locateHelper(searchKey, cursor, counter+1, treeHeight);
+		return locateHelper(searchKey, cursor, counter+1, treeHeight, c_pid);
+
 	}
 	return 0;
 }
@@ -386,7 +441,9 @@ RC BTreeIndex::locate(int searchKey, IndexCursor& cursor)
 
 	RC rc;
     //call the recursive function that we made
-	rc = locateHelper(searchKey, cursor, 0, treeHeight); // puts the cursor at the leaf node
+
+	rc = locateHelper(searchKey, cursor, 0, treeHeight, rootPid); // puts the cursor at the leaf node
+
 	if (rc < 0)
 		return rc;
 
