@@ -40,19 +40,14 @@ int BTLeafNode::getKeyCount()
 	 * Note: Leaf nodes just need to read the keys for each entry
 	 * in the node (until empty or until page_id pointer)
 	*/
-	int numKeys = 0;
-	int key;
-	RecordId rid;
-	RC rc;
-
-	for (int eid = 0; eid < MAX_KEYS; eid++) {
-		rc = readLEntry(eid, key, rid);
-		if (key < 0 || rc < 0)
-			break;
-		else numKeys++;
+	leafNodeEntry * l = (leafNodeEntry*) buffer;
+	for(int i = 0; i < MAX_KEYS; i++)
+	{
+		if(l->key == 0)
+			return i;
+	        l++;
 	}
-
-	return numKeys;
+	return MAX_KEYS;
 }
 
 /*
@@ -163,24 +158,23 @@ RC BTLeafNode::insertAndSplit(int key, const RecordId& rid,
  */
 RC BTLeafNode::locate(int searchKey, int& eid)
 {
-	int key;
-	RecordId rid;
-	RC rc;
-
-	// Reads each entry in node until the key of that (key, rid) pair is >= desired key.
-	for(eid = 0; eid < getKeyCount(); eid++) {
-		rc = readLEntry(eid, key, rid);
-		if (rc < 0)
-			return rc;
-		else if (key == searchKey)
+	leafNodeEntry *l = (leafNodeEntry*) buffer;
+	int c_key = getKeyCount();
+	for(int c = 0; c < c_key; c++)
+	{
+	 	if(l->key == searchKey)
+		{
+			eid = c;
 			return 0;
-		else if (key > searchKey) {
-			eid--;
-			return RC_NO_SUCH_RECORD;
 		}
+	 	if(l->key > searchKey)
+		{
+			eid = c;
+			return RC_NO_SUCH_RECORD;	
+		}
+		l++;
 	}
-
-	eid = -1;
+	eid = c_key;
 	return RC_NO_SUCH_RECORD;
 }
 
@@ -435,7 +429,7 @@ RC BTNonLeafNode::locateChildPtr(int searchKey, PageId& pid)
 RC BTNonLeafNode::initializeRoot(PageId pid1, int key, PageId pid2)
 {
 	//do we need to make sure buffer is empty?
-	memset(buffer, 0, PageFile::PAGE_SIZE);
+	memset(buffer, -1, PageFile::PAGE_SIZE);
 
 	// TODO: Do we need to allocate memory for this?
 	int* ptr = (int*) buffer;

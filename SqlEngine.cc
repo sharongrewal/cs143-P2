@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 by The Regents of the University of California
  * Redistribution of this file is permitted under the terms of the GNU
  * Public License (GPL).
@@ -260,15 +260,7 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
   int    count;
   int    diff;
 
-  BTreeIndex btree;
-
-    // open the index file
-  if ((rc = btree.open(table + ".idx", 'r')) == 0) {
-    rc = selectHelper(btree, attr, table, cond);
-    // returns -1 if condition contains <>, so we should use indexing
-    if (rc != -1)
-      return rc;
-  }
+  BTreeIndex *btree = new BTreeIndex(table + "idx", 'r');
 
   // open the table file
   if ((rc = rf.open(table + ".tbl", 'r')) < 0) {
@@ -396,11 +388,11 @@ RC SqlEngine::load(const string& table, const string& loadfile, bool index)
         return rc;
  }
 
-  BTreeIndex tree_index;
+  BTreeIndex * tree_index;
   if (index == true) {
-    rc = tree_index.open(table + ".idx", 'w');
+   tree_index = new BTreeIndex(table + ".idx", 'w');
     if (rc < 0) {
-      tree_index.close();
+      tree_index->close();
       return rc;
     }
   }
@@ -424,10 +416,12 @@ RC SqlEngine::load(const string& table, const string& loadfile, bool index)
       break;
     }
     if (index == true) {
-      rc = tree_index.insert(key, rid);
+      rc = tree_index->insert(key, rid);
       if (rc < 0) {
         fprintf(stderr, "Error inserting data into index for table %s\n", table.c_str());
-        tree_index.close();
+        rec_file.close();
+	tree_index->close();
+	curr_file.close();
         return rc;
       }
     }
