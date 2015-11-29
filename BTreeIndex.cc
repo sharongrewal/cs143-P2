@@ -246,8 +246,9 @@ RC BTreeIndex::insert(int key, const RecordId& rid)
     return 0;
 }
 
-RC BTreeIndex::locateHelper(int searchKey, IndexCursor& cursor, int counter, int treeHeight) {
+RC BTreeIndex::locateHelper(int searchKey, IndexCursor& cursor, int counter) {
 	RC rc;
+	fprintf(stdout, "Treeheight when locating key: %d\n", treeHeight);
 	if (counter == treeHeight) { // leaf node
 		BTLeafNode *ln = new BTLeafNode();
 		rc = ln->locate(searchKey, cursor.eid);
@@ -263,7 +264,7 @@ RC BTreeIndex::locateHelper(int searchKey, IndexCursor& cursor, int counter, int
 			fprintf(stderr, "Locating %d in child pointer failed\n", searchKey);
 			return rc;
 		}
-		return locateHelper(searchKey, cursor, counter+1, treeHeight);
+		return locateHelper(searchKey, cursor, counter+1);
 	}
 	return 0;
 }
@@ -292,7 +293,7 @@ RC BTreeIndex::locate(int searchKey, IndexCursor& cursor)
     	return RC_INVALID_CURSOR;*/
 
 	RC rc;
-	rc = locateHelper(searchKey, cursor, 0, treeHeight); // puts the cursor at the leaf node
+	rc = locateHelper(searchKey, cursor, 0); // puts the cursor at the leaf node
 	if (rc < 0)
 		return rc;
 

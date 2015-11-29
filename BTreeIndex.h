@@ -80,7 +80,7 @@ class BTreeIndex {
    */
   RC locate(int searchKey, IndexCursor& cursor);
 
-  RC locateHelper(int searchKey, IndexCursor& cursor, int counter, int treeHeight);
+  RC locateHelper(int searchKey, IndexCursor& cursor, int counter);
 
   /**
    * Read the (key, rid) pair at the location specified by the index cursor,
