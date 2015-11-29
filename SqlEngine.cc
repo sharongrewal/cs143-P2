@@ -69,12 +69,6 @@ RC SqlEngine::selectHelper(BTreeIndex& btree, int attr, const string& table, con
   int       equal    = -1;
   int       keyComp  = -1;
 
-
-  if ((rc = btree.read(rid, key, value)) < 0) {
-    fprintf(stderr, "Error: while reading a tuple from table %s\n", table.c_str());
-    goto exit_select;
-  }
-
   // check the conditions on the tuple
   for (unsigned i = 0; i < cond.size(); i++) {
     // compute the difference between the tuple value and the condition value
@@ -128,12 +122,11 @@ RC SqlEngine::selectHelper(BTreeIndex& btree, int attr, const string& table, con
   }
 
   // Read the tuples until out of the range
-  while (rc == 0 && (high == -1 || readKey <= high)) {
+  while (rc == 0 && (high == -1 || curr_key <= high)) {
     // if attr == 4, then we only need to get count
     if(attr != 4) {
-      if ((rc = rf.read(curr_rid, readKey, value)) < 0) {
+      if ((rc = rf.read(curr_rid, curr_key, value)) < 0) {
         fprintf(stderr, "Error: while reading a tuple from table %s\n", table.c_str());
-        goto exit_select;
       }
     }
     // the condition is met for the tuple. 
@@ -156,6 +149,7 @@ RC SqlEngine::selectHelper(BTreeIndex& btree, int attr, const string& table, con
 
   // move to the next tuple
   next_tuple:
+  ;
 }
 
 RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
