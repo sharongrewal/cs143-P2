@@ -71,41 +71,6 @@ RC BTreeIndex::open(const string& indexname, char mode)
 
 	RC rc;
     //create an instance of PageFile
-	pf = PageFile(indexname, mode);
-
-    //open the PageFile
-	rc = pf.open(indexname, mode);
-
-    //check if it opened
-	if (rc < 0) {
-		return rc; 
-	}
-    //create a buffer with the size of PAGE_SIZE
-	char buf[PageFile::PAGE_SIZE];
-
-    //check if endPid is 0
-	if (pf.endPid() == 0) {
-
-        //set rootPid to -1
- 		rootPid = -1;
-
-        //set treeHeight back to 0
- 		treeHeight = 0;
-	 	int* bufPtr = (int*) buf;
-		bufPtr[0] = rootPid;
-		bufPtr[1] = treeHeight;
-
-        //write to to buffer
-		pf.write(0, buf);
-	}
-	else {
-        //read to buffer
-	 	pf.read(0, buf);
-	 	int* bufPtr = (int*) buf;
-
-        //set rootPid & treeHeight to bufPtr
-	 	rootPid = bufPtr[0];
-	 	treeHeight = bufPtr[1];
 //	pf = PageFile(indexname, mode);
 
 
@@ -115,7 +80,6 @@ RC BTreeIndex::open(const string& indexname, char mode)
     //check if it opened
 	if (rc < 0) {
 		return rc; 
-
 	}
     
 
@@ -389,7 +353,6 @@ RC BTreeIndex::locateHelper(int searchKey, IndexCursor& cursor, int counter, int
 	if (counter == treeHeight) { // leaf node
         //new instance of LeafNode
 		cursor.pid = pid;
-
 		BTLeafNode *ln = new BTLeafNode();
 		if((rc = ln->read(pid, pf)) < 0) return rc;
 		rc = ln->locate(searchKey, cursor.eid);
@@ -400,18 +363,15 @@ RC BTreeIndex::locateHelper(int searchKey, IndexCursor& cursor, int counter, int
 	else { // nonleaf node
         //new instance of nonleafnode
 		BTNonLeafNode *n = new BTNonLeafNode();
-	
 		if((rc = n->read(pid,pf)) < 0) return rc;
 		
 		PageId c_pid;
 		rc = n->locateChildPtr(searchKey,c_pid);
-
         //check if locateChildPtr succeessful
 		if (rc < 0)
 			return rc;
         //otherwise just keep going
 		return locateHelper(searchKey, cursor, counter+1, treeHeight, c_pid);
-
 	}
 	return 0;
 }
@@ -441,9 +401,7 @@ RC BTreeIndex::locate(int searchKey, IndexCursor& cursor)
 
 	RC rc;
     //call the recursive function that we made
-
 	rc = locateHelper(searchKey, cursor, 0, treeHeight, rootPid); // puts the cursor at the leaf node
-
 	if (rc < 0)
 		return rc;
 
