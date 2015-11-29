@@ -50,7 +50,7 @@ The conditions listed in the WHERE clause are passed as the input parameter cond
 
 */
 
-RC SqlEngine::selectHelper(BTreeIndex& btree, int attr, const string& table, const vector<SelCond>& cond)
+RC SqlEngine::selectHelper(BTreeIndex* btree, int attr, const string& table, const vector<SelCond>& cond)
 {
 
   RecordFile rf;   // RecordFile containing the table
@@ -192,7 +192,7 @@ RC SqlEngine::selectHelper(BTreeIndex& btree, int attr, const string& table, con
     low_k = 0;
 
   // cursor should be placed at lowest possible value, given conditions
-  if ((rc = btree.locate(low_k, cursor)) < 0) {
+  if ((rc = btree->locate(low_k, cursor)) < 0) {
     fprintf(stderr, "Error: cannot locate lowest key\n");
     return rc;
   }
@@ -207,7 +207,7 @@ RC SqlEngine::selectHelper(BTreeIndex& btree, int attr, const string& table, con
   while (rc == 0 && (high_k == -1 || key <= high_k)) {
     // if attr == 4, then we only need to get count
     if(attr != 4) {
-      if ((rc = btree.readForward(cursor, key, rid)) < 0) {
+      if ((rc = btree->readForward(cursor, key, rid)) < 0) {
         fprintf(stderr, "Error: while reading a tuple from tree\n");
         return rc;
       }
@@ -261,6 +261,9 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
   int    diff;
 
   BTreeIndex *btree = new BTreeIndex(table + "idx", 'r');
+  rc = selectHelper(btree, attr, table, cond);
+  if(rc != -1)
+	return rc;
 
   // open the table file
   if ((rc = rf.open(table + ".tbl", 'r')) < 0) {
