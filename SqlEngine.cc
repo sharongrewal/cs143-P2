@@ -60,14 +60,23 @@ RC SqlEngine::selectHelper(BTreeIndex& btree, int attr, const string& table, con
   RC        rc;
   int       key;     
   string    value;
-  int       curr_key;
-  RecordId  curr_rid;
   int       count    =  0;
   int       diff;
-  int       low      = -1;
-  int       high     = -1;
-  int       equal    = -1;
+
+  // variables for conditions involving keys
   int       keyComp  = -1;
+  int       low_k    = -1;
+  int       high_k   = -1;
+  vector<int> eq_cond_k;
+  bool has_eq_k = false; // checks for  multiple equlity statements
+
+  // variables for conditions involving values
+  string    valComp  = "";
+  string    low_v    = "";
+  string    high_v   = "";
+  vector<string> eq_cond_v;
+  bool has_eq_v = false; // checks for  multiple equlity statements
+
 
   // check the conditions on the tuple
   for (unsigned i = 0; i < cond.size(); i++) {
@@ -76,57 +85,152 @@ RC SqlEngine::selectHelper(BTreeIndex& btree, int attr, const string& table, con
     case 1:
       switch (cond[i].comp) {
       case SelCond::EQ:
-        if (diff != 0) goto next_tuple;
+        keyComp = atoi(cond[i].value);
+        // if there are no equality statements yet
+        if (!has_eq_k) {
+          eq_cond_k.push_back(keyComp);
+          has_eq_k = true;
+          low_k = keyComp;
+          high_k = keyComp;
+        }
+        // if there are existing equality statements
+        else if (has_eq_k) {
+          if (eq_cond_k[0] != keyComp) {
+            return 0;
+          }
+        }
+        // if (diff != 0) goto next_tuple;
         break;
       case SelCond::NE:
-        if (diff == 0) goto next_tuple;
+        // we should use indexing
+        goto use_index;
+        // if (diff == 0) goto next_tuple;
         break;
       case SelCond::GT:
         keyComp = atoi(cond[i].value);
-        if (keyComp >= low || low == -1) {
-          low = keyComp;
+        if (keyComp >= low_k || low_k == -1) {
+          low_k = keyComp;
         }
         break;
       case SelCond::LT:
         keyComp = atoi(cond[i].value);
-        if (keyComp <= high || high == -1) {
-          high = keyComp;
+        if (keyComp <= high_k || high_k == -1) {
+          high_k = keyComp;
         }
         break;
       case SelCond::GE:
         keyComp = atoi(cond[i].value);
-        if (keyComp > low || low == -1) {
-          low = keyComp;
+        if (keyComp > low_k || low_k == -1) {
+          low_k = keyComp;
         }
         break;
       case SelCond::LE:
         keyComp = atoi(cond[i].value);
-        if (keyComp < high || high == -1) {
-          high = keyComp;
+        if (keyComp < high_k || high_k == -1) {
+          high_k = keyComp;
         }
         break;
       }
       break;
     case 2:
-      diff = strcmp(value.c_str(), cond[i].value);
+      //diff = strcmp(value.c_str(), cond[i].value);
+      switch (cond[i].comp) {
+      case SelCond::EQ:
+        valComp = cond[i].value;
+        // if there are no equality statements yet
+        if (!has_eq_v) {
+          eq_cond_v.push_back(valComp);
+          has_eq_v = true;
+          low_v = valComp;
+          high_v = valComp;
+        }
+        // if there are existing equality statements
+        // check to see if they have equal values
+        else if (has_eq_v) {
+          if (eq_cond_v[0] != valComp) {
+            return 0;
+          }
+        }
+        // if (diff != 0) goto next_tuple;
+        break;
+      case SelCond::NE:
+        // we should use indexing
+        goto use_index;
+        //if (diff == 0) goto next_tuple;
+        break;
+      case SelCond::GT:
+        valComp = cond[i].value;
+        if (valComp >= low_v || low_v == "") {
+          low_v = valComp;
+        }
+        break;
+      case SelCond::LT:
+        valComp = cond[i].value;
+        if (valComp <= high_v || high_v == "") {
+          high_v = valComp;
+        }
+        break;
+      case SelCond::GE:
+        valComp = cond[i].value;
+        if (valComp > low_v || low_v == "") {
+          low_v = valComp;
+        }
+        break;
+      case SelCond::LE:
+        valComp = cond[i].value;
+        if (valComp < high_v || high_v == "") {
+          high_v = valComp;
+        }
+        break;
+      }
       break;
     }
   }
 
-  // cursor should be placed at lowest possible value, given conditions
-  btree.locate(low, cursor);
+  // ISSUE: is the lowest key value 0????????
+  if (low_k == -1)
+    low_k = 0;
 
+  // cursor should be placed at lowest possible value, given conditions
+  if ((rc = btree.locate(low_k, cursor)) < 0) {
+    fprintf(stderr, "Error: cannot locate lowest key\n");
+    return rc;
+  }
+
+    // open the table file
   if ((rc = rf.open(table + ".tbl", 'r')) < 0) {
     fprintf(stderr, "Error: table %s does not exist\n", table.c_str());
     return rc;
   }
 
   // Read the tuples until out of the range
-  while (rc == 0 && (high == -1 || curr_key <= high)) {
+  while (rc == 0 && (high_k == -1 || key <= high_k)) {
     // if attr == 4, then we only need to get count
     if(attr != 4) {
-      if ((rc = rf.read(curr_rid, curr_key, value)) < 0) {
-        fprintf(stderr, "Error: while reading a tuple from table %s\n", table.c_str());
+      if ((rc = btree.readForward(cursor, key, rid)) < 0) {
+        fprintf(stderr, "Error: while reading a tuple from tree\n");
+        return rc;
+      }
+      else {
+        if ((rc = rf.read(rid, key, value)) < 0) {
+          fprintf(stderr, "Error: while reading a tuple from table %s\n", table.c_str());
+          return rc;
+        }
+        // if value meets conditions
+        if (value >= low_v && value <= high_v) {
+          // print the tuple 
+          switch (attr) {
+          case 1:  // SELECT key
+            fprintf(stdout, "%d\n", key);
+            break;
+          case 2:  // SELECT value
+            fprintf(stdout, "%s\n", value.c_str());
+            break;
+          case 3:  // SELECT *
+            fprintf(stdout, "%d '%s'\n", key, value.c_str());
+            break;
+          }
+        }
       }
     }
     // the condition is met for the tuple. 
@@ -134,22 +238,15 @@ RC SqlEngine::selectHelper(BTreeIndex& btree, int attr, const string& table, con
     count++;
   }
 
-  // print the tuple 
-  switch (attr) {
-  case 1:  // SELECT key
-    fprintf(stdout, "%d\n", key);
-    break;
-  case 2:  // SELECT value
-    fprintf(stdout, "%s\n", value.c_str());
-    break;
-  case 3:  // SELECT *
-    fprintf(stdout, "%d '%s'\n", key, value.c_str());
-    break;
+  // if we only need to return count
+  if (attr == 4) {
+    fprintf(stdout, "%d\n", count);
   }
 
-  // move to the next tuple
-  next_tuple:
-  ;
+  use_index:
+    return -1;
+
+  return 0;
 }
 
 RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
@@ -167,8 +264,10 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
 
     // open the index file
   if ((rc = btree.open(table + ".idx", 'r')) == 0) {
-    selectHelper(btree, attr, table, cond);
-    return 0;
+    rc = selectHelper(btree, attr, table, cond);
+    // returns -1 if condition contains <>, so we should use indexing
+    if (rc != -1)
+      return rc;
   }
 
   // open the table file

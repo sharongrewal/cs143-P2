@@ -150,6 +150,8 @@ RC BTreeIndex::insertHelper(const RecordId& rid, int key, PageId pid, int &new_k
 
 	}
 
+	return 0;
+
 	//rc = insert(key, cursor.pid); //nonleafnode
 	//if (rc < 0)
 	//	return rc;
