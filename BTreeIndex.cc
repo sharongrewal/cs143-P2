@@ -31,7 +31,7 @@ BTreeIndex::BTreeIndex()
 RC BTreeIndex::open(const string& indexname, char mode)
 {
 	RC rc;
-	pf = PageFile(indexname, mode);
+	//pf = PageFile(indexname, mode);
 	rc = pf.open(indexname, mode);
 	if (rc < 0) {
 		return rc;
@@ -53,6 +53,7 @@ RC BTreeIndex::open(const string& indexname, char mode)
 	 	rootPid = bufPtr[0];
 	 	treeHeight = bufPtr[1];
 	}
+	fprintf(stdout,"SUCCESSFULLY OPENED INDEX\n");
 
     return 0;
 }
@@ -172,13 +173,17 @@ RC BTreeIndex::insert(int key, const RecordId& rid)
 	if (treeHeight == 0) {
 		BTLeafNode *ln = new BTLeafNode;
 		rc = ln->insert(key, rid);
-		if (rc < 0)
+		if (rc < 0) {
+			fprintf(stderr,"ERROR INSERTING (KEY,RID) INTO TREE\n");
 			return rc;
+		}
 	
 		rootPid = 1;
 		rc = ln->write(rootPid, pf);
-		if (rc < 0)
+		if (rc < 0) {
+			fprintf(stderr,"ERROR WRITING PAGE\n");
 			return rc;
+		}
 
 		treeHeight = 1;
 	}
@@ -244,14 +249,18 @@ RC BTreeIndex::locateHelper(int searchKey, IndexCursor& cursor, int counter, int
 	if (counter == treeHeight) { // leaf node
 		BTLeafNode *ln = new BTLeafNode();
 		rc = ln->locate(searchKey, cursor.eid);
-		if (rc < 0)
+		if (rc < 0) {
+			fprintf(stderr, "Locating %d in leaf node failed\n", searchKey);
 			return rc;
+		}
 	}
 	else { // nonleaf node
 		BTNonLeafNode *n = new BTNonLeafNode();
 		rc = n->locateChildPtr(searchKey,cursor.pid);
-		if (rc < 0)
+		if (rc < 0) {
+			fprintf(stderr, "Locating %d in child pointer failed\n", searchKey);
 			return rc;
+		}
 		return locateHelper(searchKey, cursor, counter+1, treeHeight);
 	}
 	return 0;

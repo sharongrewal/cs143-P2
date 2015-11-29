@@ -3,7 +3,7 @@
 using namespace std;
 
 BTLeafNode::BTLeafNode() {
-	memset(buffer, 0, PageFile::PAGE_SIZE);
+	memset(buffer, -1, PageFile::PAGE_SIZE);
 }
 
 /*
@@ -64,24 +64,34 @@ int BTLeafNode::getKeyCount()
 RC BTLeafNode::insert(int key, const RecordId& rid)
 {
 	int count = getKeyCount();
+
+	fprintf(stdout, "------------------------------\nThere are %d keys currently\n", count);
+
 	// ISSUE: If the node is full, do we need to split or just report error?
-	if (count >= MAX_KEYS)
+	if (count >= MAX_KEYS) {
+		fprintf(stderr,"KEY COUNT EXCEEDS MAX KEYS; NODE FULL\nCANNOT INSERT %d\n", key);
     	return RC_NODE_FULL;
+    }
 
 	int eid;
 	RC rc = locate(key, eid);
 	if (rc < 0) {
-		if (rc != RC_NO_SUCH_RECORD)
+		if (rc != RC_NO_SUCH_RECORD) {
+			fprintf(stderr,"CANNOT LOCATE KEY %d\n", key);
     		return rc;
-    	else eid = count;
+    	} else if (eid == -1) eid = count;
+    	//else eid = count;
     }
 
     int* bufferPtr = (int*) buffer;
 
     // Moves keys over by one index, and inserts new values into correct position.
-	for (int key_index = count * ENTRY_SIZE - 1; key_index >= eid * ENTRY_SIZE; key_index--) {
-    	buffer[key_index + ENTRY_SIZE] = buffer[key_index];
+	for (int key_index = count * ENTRY_SIZE; key_index >= eid * ENTRY_SIZE; key_index -= ENTRY_SIZE) {
+		*(bufferPtr + key_index + ENTRY_SIZE) = *(bufferPtr + key_index);
+		*(bufferPtr + key_index + ENTRY_SIZE + sizeof(int)) = *(bufferPtr + key_index + sizeof(int));
+		*(bufferPtr + key_index + ENTRY_SIZE + sizeof(int) + sizeof(int)) = *(bufferPtr + key_index + sizeof(int) + sizeof(int));
     	if (key_index == eid * ENTRY_SIZE) {
+    		fprintf(stdout, "Insertion: moving %d to %d (index), want %d (eid)\n", key, key_index, eid);
     		*(bufferPtr + key_index) = key;
 			*(bufferPtr + key_index + sizeof(int)) = rid.pid;
 			*(bufferPtr + key_index + sizeof(int) + sizeof(int)) = rid.sid;
@@ -170,17 +180,22 @@ RC BTLeafNode::locate(int searchKey, int& eid)
 	// Reads each entry in node until the key of that (key, rid) pair is >= desired key.
 	for(eid = 0; eid < getKeyCount(); eid++) {
 		rc = readLEntry(eid, key, rid);
-		if (rc < 0)
+		fprintf(stdout, "We just read entry %d in locate(), with key %d\n", eid, key);
+		if (rc < 0) {
+			fprintf(stderr, "ReadLEntry failed for %d\n", searchKey);
 			return rc;
+		}
 		else if (key == searchKey)
 			return 0;
 		else if (key > searchKey) {
-			eid--;
+			//eid--;
+			fprintf(stderr, "key %d greater than searchkey %d, insert key at %d\n", key, searchKey, eid);
 			return RC_NO_SUCH_RECORD;
 		}
 	}
 
 	eid = -1;
+	fprintf(stderr, "%d does not exist in %d keys\n", searchKey, getKeyCount());
 	return RC_NO_SUCH_RECORD;
 }
 

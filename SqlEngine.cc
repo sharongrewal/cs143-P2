@@ -193,7 +193,7 @@ RC SqlEngine::selectHelper(BTreeIndex& btree, int attr, const string& table, con
 
   // cursor should be placed at lowest possible value, given conditions
   if ((rc = btree.locate(low_k, cursor)) < 0) {
-    fprintf(stderr, "Error: cannot locate lowest key\n");
+    fprintf(stderr, "Error: cannot locate lowest key %d\n", low_k);
     return rc;
   }
 
@@ -264,11 +264,15 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
 
     // open the index file
   if ((rc = btree.open(table + ".idx", 'r')) == 0) {
+    fprintf(stdout, "SUCCESSFULLY OPENED IDX FILE\n"); //////////////////////
     rc = selectHelper(btree, attr, table, cond);
+    fprintf(stdout, "EXITED SELECT HELPER\n"); //////////////////////////
     // returns -1 if condition contains <>, so we should use indexing
     if (rc != -1)
       return rc;
   }
+
+  fprintf(stdout, "READING FROM TABLE\n"); //////////////////////////////
 
   // open the table file
   if ((rc = rf.open(table + ".tbl", 'r')) < 0) {
@@ -400,6 +404,7 @@ RC SqlEngine::load(const string& table, const string& loadfile, bool index)
   if (index == true) {
     rc = tree_index.open(table + ".idx", 'w');
     if (rc < 0) {
+      fprintf(stderr, "Error opening index file for table %s\n", table.c_str());
       tree_index.close();
       return rc;
     }
