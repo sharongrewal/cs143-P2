@@ -35,6 +35,7 @@ class BTreeIndex {
  public:
   BTreeIndex();
   BTreeIndex(const std::string& indexname, char mode);
+  void save_tree();
   /**
    * Open the index file in read or write mode.
    * Under 'w' mode, the index file should be created if it does not exist.

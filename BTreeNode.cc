@@ -3,7 +3,7 @@
 using namespace std;
 
 BTLeafNode::BTLeafNode() {
-	memset(buffer, 0, PageFile::PAGE_SIZE);
+	memset(buffer, -1, PageFile::PAGE_SIZE);
 }
 
 /*
@@ -40,12 +40,13 @@ int BTLeafNode::getKeyCount()
 	 * Note: Leaf nodes just need to read the keys for each entry
 	 * in the node (until empty or until page_id pointer)
 	*/
-	leafNodeEntry * l = (leafNodeEntry*) buffer;
-	for(int i = 0; i < MAX_KEYS; i++)
+	leafNodeEntry* l = (leafNodeEntry*) buffer;
+	for(int c = 0; c < MAX_KEYS; c++)
 	{
+
 		if(l->key == 0)
-			return i;
-	        l++;
+			return c;
+		l++;
 	}
 	return MAX_KEYS;
 }
@@ -59,30 +60,23 @@ int BTLeafNode::getKeyCount()
 RC BTLeafNode::insert(int key, const RecordId& rid)
 {
 	int count = getKeyCount();
-	// ISSUE: If the node is full, do we need to split or just report error?
-	if (count >= MAX_KEYS)
-    	return RC_NODE_FULL;
 
-	int eid;
-	RC rc = locate(key, eid);
-	if (rc < 0) {
-		if (rc != RC_NO_SUCH_RECORD)
-    		return rc;
-    	else eid = count;
+	//fprintf(stdout, "------------------------------\nThere are %d keys currently\n", count);
+
+	// ISSUE: If the node is full, do we need to split or just report error?
+	if (count >= MAX_KEYS) {
+		//fprintf(stderr,"KEY COUNT EXCEEDS MAX KEYS; NODE FULL\nCANNOT INSERT %d\n", key);
+    	return RC_NODE_FULL;
     }
 
-    int* bufferPtr = (int*) buffer;
+    int eid = 0;
+    if(count > 0) locate(key, eid);
 
-    // Moves keys over by one index, and inserts new values into correct position.
-	for (int key_index = count * ENTRY_SIZE - 1; key_index >= eid * ENTRY_SIZE; key_index--) {
-    	buffer[key_index + ENTRY_SIZE] = buffer[key_index];
-    	if (key_index == eid * ENTRY_SIZE) {
-    		*(bufferPtr + key_index) = key;
-			*(bufferPtr + key_index + sizeof(int)) = rid.pid;
-			*(bufferPtr + key_index + sizeof(int) + sizeof(int)) = rid.sid;
-    	}
-	}
-
+    leafNodeEntry* l = (leafNodeEntry*) buffer + eid;
+    if(count > 0 && eid != count)
+    	memmove(l+1, l, (count - eid)*sizeof(leafNodeEntry));
+    l->key = key;
+    l->rid = rid;
 	return 0;
 }
 
@@ -103,45 +97,32 @@ RC BTLeafNode::insertAndSplit(int key, const RecordId& rid,
 	RC rc;
 	int numKeys = getKeyCount();
 
-	// Check to make sure the node is full. Otherwise, error.
-	// Check to make sure sibling node is empty. Otherwise, error.
-	// ISSUE: Can we make the assumption that we would only want to split if the node was full?
-	if (numKeys < MAX_KEYS)
-		return RC_INVALID_FILE_FORMAT;
-    else if (sibling.getKeyCount() != 0)
-		return RC_INVALID_ATTRIBUTE;
-	
-	// Get the index of the middle of the full node, to prepare to split node in half with sibling.
-	int sib_key;
-	RecordId sib_rid;
-	int mid = (numKeys + 1) / 2;
-	int* bufferPtr = (int*) buffer;
+	int mid_key = (numKeys+1)/2;
+	int curr_key = 0;
 
-	// Move second half of current node into sibling node; delete moved data from original node.
-	for (int key_index = mid * ENTRY_SIZE; key_index < numKeys * ENTRY_SIZE; key_index++) {
-		// read from original node, insert into sibling node
-		rc = readLEntry(key_index/ENTRY_SIZE, sib_key, sib_rid);
-		if (rc < 0) return rc;
-		rc = sibling.insert(sib_key, sib_rid);
-		if (rc < 0) return rc;
-
-		// delete from original node
-		*(bufferPtr + key_index) = -1;
-		*(bufferPtr + key_index + sizeof(int)) = -1;
-		*(bufferPtr + key_index + sizeof(int) + sizeof(int)) = -1;
+	leafNodeEntry* l = (leafNodeEntry*) buffer + mid_key;
+	if(key < l[-1].key)
+	{
+		mid_key--;
+		l--;
+		curr_key=1;
 	}
 
-	// Set sibling's pointer to next sibling node.
-	sibling.setNextNodePtr(getNextNodePtr());
-	// Set current node's pointer to new sibling node.
-	// setNextNodePtr(endPid()-1);
+	siblingKey = l->key;
+	for(int c = 0; c < numKeys - mid_key; c++)
+	{
+		sibling.insert(l[c].key, l[c].rid);
+	}
+	memset(l, 0, (numKeys - mid_key) * sizeof(leafNodeEntry));
 
-	// Insert new (key, rid) pair into correct position
-	// ISSUE: Do we need to push up values to parent node?
-	if (key < siblingKey) {
+	if(curr_key == 1)
 		insert(key, rid);
-	} else sibling.insert(key, rid);
-
+	else
+	{
+		sibling.insert(key, rid);
+		if(key < siblingKey)
+			siblingKey = key;
+	}
 	return 0;
 }
 
@@ -158,24 +139,29 @@ RC BTLeafNode::insertAndSplit(int key, const RecordId& rid,
  */
 RC BTLeafNode::locate(int searchKey, int& eid)
 {
-	leafNodeEntry *l = (leafNodeEntry*) buffer;
-	int c_key = getKeyCount();
-	for(int c = 0; c < c_key; c++)
+
+
+	leafNodeEntry* l = (leafNodeEntry*) buffer;
+	int keys = getKeyCount();
+	for(int c = 0; c < keys; c++)
 	{
-	 	if(l->key == searchKey)
-		{
+		if(l->key == searchKey){
+
+			//fprintf(stdout, "We just read entry %d in locate(), with key %d\n", eid, key);
 			eid = c;
 			return 0;
 		}
-	 	if(l->key > searchKey)
-		{
+		else if(l->key > searchKey){
+			//fprintf(stderr, "key %d greater than searchkey %d, insert key at %d\n", key, searchKey, eid);
 			eid = c;
-			return RC_NO_SUCH_RECORD;	
+			return RC_NO_SUCH_RECORD;
 		}
 		l++;
 	}
-	eid = c_key;
+	eid = keys;
 	return RC_NO_SUCH_RECORD;
+
+	
 }
 
 /*
@@ -198,19 +184,12 @@ RC BTLeafNode::readLEntry(int eid, int& key, RecordId& rid)
 
 	// Is it necessary to check if eid exceeds number of keys in page?
 
-	if (eid < 0 || eid >= MAX_KEYS)
+	if(eid >= getKeyCount())
 		return RC_INVALID_CURSOR;
+	leafNodeEntry* l = (leafNodeEntry*) buffer + eid;
+	key = l->key;
+	rid = l->rid;
 
-	int* bufferPtr = (int*) buffer;
-	int index = eid * ENTRY_SIZE;
-
-	key = *(bufferPtr + index);
-	rid.pid = *(bufferPtr + index + sizeof(PageId));
-	if (rid.pid < 0)
-		return RC_INVALID_PID;
-	rid.sid = *(bufferPtr + index + sizeof(PageId) + sizeof(int));
-	if (rid.sid < 0)
-		return RC_INVALID_RID;
 
 	return 0; 
 }
@@ -300,19 +279,14 @@ RC BTNonLeafNode::readNLEntry(int index, int& key)
 int BTNonLeafNode::getKeyCount()
 {
 	/*Non-leaf nodes read every other key in the array for a key.*/
-	int numKeys = 0;
-	int key;
-	RC rc;
-
-	// Counts number of keys in node.
-	for (int pid = 0; pid < MAX_KEYS; pid++) {
-		rc = readNLEntry(pid, key);
-		if (key < 0) // TODO: THIS ASSUMES THAT KEYS CAN'T BE NEGATIVE
-			break; // NEED TO FIGURE OUT HOW TO MARK KEYS AS NON-EXISTENT
-		numKeys++;
+	non_leafNodeEntry * nl = (non_leafNodeEntry*) (buffer + sizeof(PageId));
+	for(int c = 0; c < MAX_KEYS; c++)
+	{
+		if(nl->key == 0)
+			return c;
+		nl++;
 	}
-
-	return numKeys;
+	return MAX_KEYS;
 }
 
 /*
@@ -324,8 +298,8 @@ int BTNonLeafNode::getKeyCount()
 RC BTNonLeafNode::insert(int key, PageId pid)
 {
 	int currentCount = getKeyCount();
-	if (currentCount >= MAX_KEYS)
-    	return RC_NODE_FULL;
+	//if (currentCount >= MAX_KEYS)
+    //	return RC_NODE_FULL;
 
     // CHECK THIS!! probs needs more error checking
     int eid = 0;
@@ -429,7 +403,7 @@ RC BTNonLeafNode::locateChildPtr(int searchKey, PageId& pid)
 RC BTNonLeafNode::initializeRoot(PageId pid1, int key, PageId pid2)
 {
 	//do we need to make sure buffer is empty?
-	memset(buffer, -1, PageFile::PAGE_SIZE);
+	memset(buffer, 0, PageFile::PAGE_SIZE);
 
 	// TODO: Do we need to allocate memory for this?
 	int* ptr = (int*) buffer;
