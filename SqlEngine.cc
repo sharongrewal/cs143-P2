@@ -105,7 +105,7 @@ RecordFile rf;   // RecordFile containing the table
          // eq_cond_k.push_back((cond[c]));
           break;
         case SelCond::LT:
-          if(keyComp - 1 < high_k)
+          if(keyComp - 1 < high_k || high_k != -1)
             high_k = keyComp - 1;
           break;
         case SelCond::GT:
@@ -117,7 +117,7 @@ RecordFile rf;   // RecordFile containing the table
               low_k = keyComp;
           break;
         case SelCond::LE:
-          if(keyComp < high_k)
+          if(keyComp < high_k || high_k != -1)
             high_k = keyComp;
           break;
       }
