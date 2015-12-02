@@ -123,24 +123,24 @@ RC BTreeIndex::insertHelper(const RecordId& rid, int key, PageId pid, int &new_k
     //check if leaf node
 	if (curr_height == treeHeight) 
 	{
-		fprintf(stdout, "insert into leaf node\n");
+		//fprintf(stdout, "insert into leaf node\n");
 		BTLeafNode* leaf = new BTLeafNode();
 		if((rc = leaf->read(pid, pf)) != 0) return rc;
-		fprintf(stdout, "read successful\n");
+		//fprintf(stdout, "read successful\n");
 	
 		if((rc = leaf->insert(key, rid)) == RC_NODE_FULL)
 		{	
-			fprintf(stdout, "node is full, must split\n");
+			//fprintf(stdout, "node is full, must split\n");
 			BTLeafNode * sib = new BTLeafNode();
 			if((rc = leaf->insertAndSplit(key, rid, *sib, new_key)) != 0) return rc;
-			fprintf(stdout, "insertAndSplit is successful\n");
+			//fprintf(stdout, "insertAndSplit is successful\n");
 			new_pid = pf.endPid();
 			PageId temp = leaf->getNextNodePtr();
 			sib->setNextNodePtr(temp);
 			if((rc = leaf->write(pid, pf)) != 0) return rc;
-			fprintf(stdout, "write to leafnode is successful\n");
+			//fprintf(stdout, "write to leafnode is successful\n");
 			if((rc = sib->write(new_pid, pf)) != 0) return rc;
-			fprintf(stdout, "write to sibling leafnode is successful\n");
+			//fprintf(stdout, "write to sibling leafnode is successful\n");
 			if(curr_height == 0)
 			{
 				BTNonLeafNode * new_root = new BTNonLeafNode();
@@ -154,21 +154,21 @@ RC BTreeIndex::insertHelper(const RecordId& rid, int key, PageId pid, int &new_k
 		}
 	
 		if((rc = leaf->write(pid, pf)) != 0) return rc;
-		fprintf(stdout, "write to leaf node\n");
+		//fprintf(stdout, "write to leaf node\n");
      
 	}
 	else{
-		fprintf(stdout, "nonleafnode\n");
+		//fprintf(stdout, "nonleafnode\n");
 		BTNonLeafNode* nl = new BTNonLeafNode();
 		if((rc = nl->read(pid, pf)) != 0) return rc;
-		fprintf(stdout, "read nonleaf successful\n");
+		//fprintf(stdout, "read nonleaf successful\n");
 		PageId c_pid;
 		if((rc = nl->locateChildPtr(key, c_pid)) != 0) return rc;
-		fprintf(stdout, "locateChildPtr successful\n");
+		//fprintf(stdout, "locateChildPtr successful\n");
 		PageId csib_pid;
 		int csib_key;
 		if((rc = insertHelper(rid, key, c_pid, csib_key, csib_pid, curr_height+1)) != 0) return rc;
-		fprintf(stdout, "insertHelper succeeded\n");
+		//fprintf(stdout, "insertHelper succeeded\n");
 		if(csib_key > 0)
 		{
 			if((rc = nl->insert(csib_key, csib_pid)) == RC_NODE_FULL){
