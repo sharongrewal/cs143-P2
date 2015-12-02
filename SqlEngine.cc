@@ -99,7 +99,18 @@ RecordFile rf;   // RecordFile containing the table
       switch(cond[c].comp)
       {
         case SelCond::EQ:
-          low_k = high_k = keyComp;
+          if (!has_eq_k) {
+            eq_cond_k.push_back(keyComp);
+            has_eq_k = true;
+            low_k = keyComp;
+            high_k = keyComp;
+          }
+          // if there are existing equality statements
+          else {
+            if (eq_cond_k[0] != keyComp) {
+              return 0;
+            }
+          }
           break;
         case SelCond::NE:
          // eq_cond_k.push_back((cond[c]));
@@ -119,6 +130,47 @@ RecordFile rf;   // RecordFile containing the table
         case SelCond::LE:
           if(keyComp < high_k || high_k == -1)
             high_k = keyComp;
+          break;
+      }
+    }
+    else if(cond[c].attr == 2)
+    {
+      valComp = cond[c].value;
+      switch(cond[c].comp)
+      {
+        case SelCond::EQ:
+          if (!has_eq_v) {
+            eq_cond_v.push_back(valComp);
+            has_eq_v = true;
+            low_v = valComp;
+            high_v = valComp;
+          }
+          // if there are existing equality statements
+          // check to see if they have equal values
+          else {
+            if (eq_cond_v[0] != valComp) {
+              return 0;
+            }
+          }
+          break;
+        case SelCond::NE:
+         // eq_cond_k.push_back((cond[c]));
+          break;
+        case SelCond::LT:
+          if(valComp < high_v || high_v == "")
+            high_v = valComp;
+          break;
+        case SelCond::GT:
+          if(valComp > low_v)
+              low_v = valComp;
+          break;
+        case SelCond::GE:
+          if(valComp >= low_v)
+              low_v = valComp;
+          break;
+        case SelCond::LE:
+          if(valComp <= high_v || high_v == "")
+            high_v = valComp;
           break;
       }
     }
@@ -164,21 +216,23 @@ RecordFile rf;   // RecordFile containing the table
         }
 
       //fprintf(stdout, "key is %d value is %s\n", key, value.c_str());
-      switch(attr)
-      {
-        case 1:
-          fprintf(stdout, "%d\n", key);
-          break;
-        case 2:
-          fprintf(stdout, "%s\n", value.c_str());
-          break;
-        case 3:
-          fprintf(stdout, "%d '%s'\n", key, value.c_str());
-          break;
-        default:
-          break;
+      if (value >= low_v && (value <= high_v || high_v == "")) {
+        switch(attr)
+        {
+          case 1:
+            fprintf(stdout, "%d\n", key);
+            break;
+          case 2:
+            fprintf(stdout, "%s\n", value.c_str());
+            break;
+          case 3:
+            fprintf(stdout, "%d '%s'\n", key, value.c_str());
+            break;
+          case 4:
+            select_count++;
+            break;
+        }
       }
-      select_count++;
 
     }
   

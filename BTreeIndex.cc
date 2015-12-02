@@ -339,7 +339,7 @@ RC BTreeIndex::readForward(IndexCursor& cursor, int& key, RecordId& rid)
 
     //create a new BTLeafNode
     BTLeafNode * ln = new BTLeafNode();
-    RC rc;
+    RC rc = 0;
 
         //check if read successful
     if((rc = ln->read(cursor.pid, pf)) != 0) {
@@ -351,8 +351,10 @@ RC BTreeIndex::readForward(IndexCursor& cursor, int& key, RecordId& rid)
     
     cursor.eid++;
     //check eid against the getKeyCount
-    if(cursor.eid == ln->getKeyCount()-1)
+    if(cursor.eid == ln->getKeyCount()+1)
     {
+    	if (ln->getNextNodePtr() < cursor.pid)
+    		rc = RC_END_OF_TREE;
         //set the nextNodePtr
     	cursor.pid = ln->getNextNodePtr();
         //set the cursor eid to 0 again
@@ -361,6 +363,6 @@ RC BTreeIndex::readForward(IndexCursor& cursor, int& key, RecordId& rid)
     }
     
     delete ln;
-    return 0;
+    return rc;
 
 }
