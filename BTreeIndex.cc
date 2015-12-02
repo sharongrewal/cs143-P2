@@ -150,12 +150,14 @@ RC BTreeIndex::insertHelper(const RecordId& rid, int key, PageId pid, int &new_k
 				rootPid = nroot_pid;
 				treeHeight++;
 				save_tree();
+				delete new_root;
 			}
+			delete sib;
 		}
 	
 		if((rc = leaf->write(pid, pf)) != 0) return rc;
 		//fprintf(stdout, "write to leaf node\n");
-     
+     	delete leaf;
 	}
 	else{
 		//fprintf(stdout, "nonleafnode\n");
@@ -189,12 +191,14 @@ RC BTreeIndex::insertHelper(const RecordId& rid, int key, PageId pid, int &new_k
 					rootPid = nroot_pid;
 					treeHeight++;
 					save_tree();
+					delete n_root;
 				}
+				delete sib;
 			}
 			if((rc = nl->write(pid, pf)) != 0) return rc;
 			
 		}
-		
+		delete nl;
 	}
 		return 0;
 }
@@ -338,11 +342,11 @@ RC BTreeIndex::readForward(IndexCursor& cursor, int& key, RecordId& rid)
     RC rc;
 
         //check if read successful
-    if((rc = ln->read(cursor.pid, pf)) != 0)
-    	return rc;
+    if((rc = ln->read(cursor.pid, pf)) != 0) {
+    	fprintf(stderr, "rc: %d; cursor.pid: %d\n", rc, cursor.pid);return rc;}
     //check if readLEntry successful
-    if((rc = ln->readLEntry(cursor.eid, key, rid)) != 0)
-    	return rc;
+    if((rc = ln->readLEntry(cursor.eid, key, rid)) != 0) {
+    	fprintf(stderr, "rc: %d; cursor.eid: %d\n", rc, cursor.eid);return rc;}
 
     
     cursor.eid++;
@@ -356,7 +360,7 @@ RC BTreeIndex::readForward(IndexCursor& cursor, int& key, RecordId& rid)
     	cursor.eid = 0;
     }
     
-
+    delete ln;
     return 0;
 
 }

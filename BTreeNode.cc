@@ -6,6 +6,9 @@ BTLeafNode::BTLeafNode() {
 	memset(buffer, -1, PageFile::PAGE_SIZE);
 }
 
+BTLeafNode::~BTLeafNode() {
+}
+
 /*
  * Read the content of the node from the page pid in the PageFile pf.
  * @param pid[IN] the PageId to read
@@ -44,7 +47,7 @@ int BTLeafNode::getKeyCount()
 	for(int c = 0; c < MAX_KEYS; c++)
 	{
 
-		if(l->key == 0)
+		if(l->key == -1)
 			return c;
 		l++;
 	}
@@ -70,7 +73,8 @@ RC BTLeafNode::insert(int key, const RecordId& rid)
     }
 
     int eid = 0;
-    if(count > 0) locate(key, eid);
+    if(count > 0) {locate(key, eid);
+    fprintf(stdout, "((EID: %d))", eid);}
 
     leafNodeEntry* l = (leafNodeEntry*) buffer + eid;
     if(count > 0 && eid != count)
@@ -143,6 +147,7 @@ RC BTLeafNode::locate(int searchKey, int& eid)
 
 	leafNodeEntry* l = (leafNodeEntry*) buffer;
 	int keys = getKeyCount();
+	fprintf(stdout," NUM KEYS: %d ", keys);
 	for(int c = 0; c < keys; c++)
 	{
 		if(l->key == searchKey){
@@ -226,6 +231,9 @@ RC BTLeafNode::setNextNodePtr(PageId pid)
 
 BTNonLeafNode::BTNonLeafNode() {
 	memset(buffer, 0, PageFile::PAGE_SIZE);
+}
+
+BTNonLeafNode::~BTNonLeafNode() {
 }
 
 /*

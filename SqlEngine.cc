@@ -70,7 +70,7 @@ RecordFile rf;   // RecordFile containing the table
   // variables for conditions involving keys
   int       keyComp  = -1;
   int       low_k    = -1;
-  int       high_k   = 85;
+  int       high_k   = -1;
   vector<int> eq_cond_k;
   bool has_eq_k = false; // checks for  multiple equality statements
 
@@ -80,6 +80,15 @@ RecordFile rf;   // RecordFile containing the table
   string    high_v   = "";
   vector<string> eq_cond_v;
   bool has_eq_v = false; // checks for  multiple equlity statements
+
+  /*if((rc = btree->locate(low_k, cursor)) != 0 && rc != -1012) { fprintf(stdout, "rc: %d // locating is horrible with low key %d\n", rc, low_k);return rc;}
+
+    for(int k = 0; k < 7; k++)
+    {
+      if((rc = btree->readForward(cursor, key, rid)) == 0)
+        fprintf(stdout,"Key: %d, RID.p: %d, RID.s: %d/// ", key, rid.pid, rid.sid);
+    else { fprintf(stdout,"Key: %d, cursor.pid: %d, RC: %d\n", key, cursor.pid, rc); return rc; }
+  }*/
 
   
   for(int c = 0; c < cond.size(); c++)
@@ -116,35 +125,43 @@ RecordFile rf;   // RecordFile containing the table
     
   }
 
+      // open the table file
+  if ((rc = rf.open(table + ".tbl", 'r')) < 0) {
+    fprintf(stderr, "Error: table %s does not exist\n", table.c_str());
+    return rc;
+  }
+
  
    /* fprintf(stdout, "low_k is %d\n", low_k);
     fprintf(stdout, "attr is %d\n", attr);
     fprintf(stdout, "high_k is %d\n", high_k);*/
-    if((rc = btree->locate(low_k, cursor)) != 0) return rc;
+    if((rc = btree->locate(low_k, cursor)) != 0 && rc != RC_NO_SUCH_RECORD) { fprintf(stdout, "locating is horrible\n");return rc;}
     /*fprintf(stdout, "located low_k %d successfully\n", low_k);
     fprintf(stdout, "locate: cursor.eid is %d cursor.pid is %d\n", cursor.eid, cursor.pid);*/
 
     for(;;)
     {
-      if((rc = btree->readForward(cursor, key, rid)) != 0) break;
-     /* fprintf(stdout, "readForward succeeded\n");
-      fprintf(stdout, "readForward: rid.pid is %d\n", rid.pid);
-      fprintf(stdout, "readForward: rid.sid is %d\n", rid.sid);
-      fprintf(stdout, "readForward: key is %d\n", key);
-      fprintf(stdout, "readFoward: cursor.eid is %d cursor.pid is %d\n", cursor.eid, cursor.pid);
-      */
-      if(key > high_k)
+      if((rc = btree->readForward(cursor, key, rid)) != 0) {fprintf(stderr,"readingForward is horrible because %d\n", rc); return rc;}
+      /*fprintf(stdout, "readForward: rid.pid is %d, ", rid.pid);
+      fprintf(stdout, "rid.sid is %d, ", rid.sid);
+      fprintf(stdout, "key is %d\n", key);
+      fprintf(stdout, "readFoward: cursor.eid is %d cursor.pid is %d\n", cursor.eid, cursor.pid); */
+      
+
+      if(key > high_k && high_k != -1)
         break;
 
-      rid.pid = cursor.pid++;
-      rid.sid = 0;
+      //rid.pid = cursor.pid++;
+      //rid.sid = 0;
       
      
-      if(attr == 2 || attr == 3)
+      if(attr == 2 || attr == 3) {
         if((rc = rf.read(rid, key, value)) != 0)
           {
-            break;
+            fprintf(stderr, "reading failed, rc: %d\n", rc);
+            return rc;
           }
+        }
 
       //fprintf(stdout, "key is %d value is %s\n", key, value.c_str());
       switch(attr)
@@ -194,13 +211,15 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
 
   BTreeIndex *btree = new BTreeIndex(table + ".idx", 'r');
   rc = selectHelper(btree, attr, table, cond);
-  if(rc != 0)
+  if(rc != 0) {
     fprintf(stdout, "selectHelper failed\n");
+    return rc;
+  }
   //else 
    // return rc;
 
   
-
+/*
   // scan the table file from the beginning
   rid.pid = rid.sid = 0;
   count = 0;
@@ -273,6 +292,7 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
     fprintf(stdout, "%d\n", count);
   }
   rc = 0;
+  */
 
   // close the table file and return
   exit_select:
