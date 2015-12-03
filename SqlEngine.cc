@@ -65,7 +65,8 @@ RecordFile rf;   // RecordFile containing the table
   bool index = false;
   int select_count = 0;
 
-
+  bool has_cond = false;
+  bool inval_cond = false;
 
   // variables for conditions involving keys
   int       keyComp  = -1;
@@ -73,6 +74,8 @@ RecordFile rf;   // RecordFile containing the table
   int       high_k   = -1;
   vector<int> eq_cond_k;
   bool has_eq_k = false; // checks for  multiple equality statements
+  vector<int> neq_cond_k;
+  bool neq_k = false;
 
   // variables for conditions involving values
   string    valComp  = "";
@@ -80,25 +83,19 @@ RecordFile rf;   // RecordFile containing the table
   string    high_v   = "";
   vector<string> eq_cond_v;
   bool has_eq_v = false; // checks for  multiple equlity statements
-
-  /*if((rc = btree->locate(low_k, cursor)) != 0 && rc != -1012) { fprintf(stdout, "rc: %d // locating is horrible with low key %d\n", rc, low_k);return rc;}
-
-    for(int k = 0; k < 7; k++)
-    {
-      if((rc = btree->readForward(cursor, key, rid)) == 0)
-        fprintf(stdout,"Key: %d, RID.p: %d, RID.s: %d/// ", key, rid.pid, rid.sid);
-    else { fprintf(stdout,"Key: %d, cursor.pid: %d, RC: %d\n", key, cursor.pid, rc); return rc; }
-  }*/
-
+  vector<string> neq_cond_v;
+  bool neq_v = false;
   
+  // go through the vector of conditions
   for(int c = 0; c < cond.size(); c++)
   {
     
-    if(cond[c].attr == 1){
+    if(cond[c].attr == 1){ // conditions involving keys
       keyComp = atoi(cond[c].value);
       switch(cond[c].comp)
       {
         case SelCond::EQ:
+          has_cond = true;
           if (!has_eq_k) {
             eq_cond_k.push_back(keyComp);
             has_eq_k = true;
@@ -113,32 +110,38 @@ RecordFile rf;   // RecordFile containing the table
           }
           break;
         case SelCond::NE:
-         // eq_cond_k.push_back((cond[c]));
+          neq_k = true;
+          neq_cond_k.push_back(atoi(cond[c].value));
           break;
         case SelCond::LT:
+          has_cond = true;
           if(keyComp - 1 < high_k || high_k == -1)
             high_k = keyComp - 1;
           break;
         case SelCond::GT:
+          has_cond = true;
           if(keyComp + 1 > low_k)
               low_k = keyComp + 1;
           break;
         case SelCond::GE:
+          has_cond = true;
           if(keyComp > low_k)
               low_k = keyComp;
           break;
         case SelCond::LE:
+          has_cond = true;
           if(keyComp < high_k || high_k == -1)
             high_k = keyComp;
           break;
       }
     }
-    else if(cond[c].attr == 2)
+    else if(cond[c].attr == 2) // conditions involving values
     {
       valComp = cond[c].value;
       switch(cond[c].comp)
       {
         case SelCond::EQ:
+          has_cond = true;
           if (!has_eq_v) {
             eq_cond_v.push_back(valComp);
             has_eq_v = true;
@@ -154,85 +157,114 @@ RecordFile rf;   // RecordFile containing the table
           }
           break;
         case SelCond::NE:
-         // eq_cond_k.push_back((cond[c]));
+          neq_v = true;
+          neq_cond_v.push_back(cond[c].value);
           break;
         case SelCond::LT:
+          has_cond = true;
           if(valComp < high_v || high_v == "")
             high_v = valComp;
           break;
         case SelCond::GT:
+          has_cond = true;
           if(valComp > low_v)
               low_v = valComp;
           break;
         case SelCond::GE:
+          has_cond = true;
           if(valComp >= low_v)
               low_v = valComp;
           break;
         case SelCond::LE:
+          has_cond = true;
           if(valComp <= high_v || high_v == "")
             high_v = valComp;
           break;
       }
     }
     
-  }
+    }
 
-      // open the table file
-  if ((rc = rf.open(table + ".tbl", 'r')) < 0) {
-    fprintf(stderr, "Error: table %s does not exist\n", table.c_str());
-    return rc;
-  }
+    // if there are only <> conditions, go to table indexing
+    if((has_eq_v || has_eq_k) && !has_cond) {
+      return -1;
+    }
 
- 
-   /* fprintf(stdout, "low_k is %d\n", low_k);
-    fprintf(stdout, "attr is %d\n", attr);
-    fprintf(stdout, "high_k is %d\n", high_k);*/
-    if((rc = btree->locate(low_k, cursor)) != 0 && rc != RC_NO_SUCH_RECORD) { fprintf(stdout, "locating is horrible\n");return rc;}
-    /*fprintf(stdout, "located low_k %d successfully\n", low_k);
-    fprintf(stdout, "locate: cursor.eid is %d cursor.pid is %d\n", cursor.eid, cursor.pid);*/
+    // open the table file
+    if ((rc = rf.open(table + ".tbl", 'r')) < 0) {
+      fprintf(stderr, "Error: table %s does not exist\n", table.c_str());
+      return rc;
+    }
+
+    // put the cursor on the lowest acceptable value given lower bounds
+    if((rc = btree->locate(low_k, cursor)) != 0 && rc != RC_NO_SUCH_RECORD) {
+      return rc;
+    }
 
     for(;;)
     {
-      if((rc = btree->readForward(cursor, key, rid)) != 0) {fprintf(stderr,"readingForward is horrible because %d\n", rc); return rc;}
-      /*fprintf(stdout, "readForward: rid.pid is %d, ", rid.pid);
-      fprintf(stdout, "rid.sid is %d, ", rid.sid);
-      fprintf(stdout, "key is %d\n", key);
-      fprintf(stdout, "readFoward: cursor.eid is %d cursor.pid is %d\n", cursor.eid, cursor.pid); */
-      
 
+      inval_cond = false;
+      
+      // read next key
+      if((rc = btree->readForward(cursor, key, rid)) != 0) {
+        if (attr = 4) fprintf(stdout, "%d\n", select_count);
+        return rc;
+      }
+
+      // if key exceeds upper bounds, break
       if(key > high_k && high_k != -1)
         break;
-
-      //rid.pid = cursor.pid++;
-      //rid.sid = 0;
       
-     
+      // if we have a condition that uses values, we read from the recordFile
       if(attr == 2 || attr == 3) {
         if((rc = rf.read(rid, key, value)) != 0)
           {
-            fprintf(stderr, "reading failed, rc: %d\n", rc);
+            fprintf(stderr, "reading value failed, rc: %d\n", rc);
             return rc;
+          }
+          if (neq_v) {
+            for (int i = 0; i < neq_cond_v.size(); i++) {
+              if (neq_cond_v[i] == value) {
+                inval_cond = true;
+                break;
+              }
+            }
+            if (inval_cond)
+              continue;
           }
         }
 
-      //fprintf(stdout, "key is %d value is %s\n", key, value.c_str());
-      if (value >= low_v && (value <= high_v || high_v == "")) {
-        switch(attr)
-        {
-          case 1:
-            fprintf(stdout, "%d\n", key);
-            break;
-          case 2:
-            fprintf(stdout, "%s\n", value.c_str());
-            break;
-          case 3:
-            fprintf(stdout, "%d '%s'\n", key, value.c_str());
-            break;
-          case 4:
-            select_count++;
-            break;
+        //make sure values are within bounds
+        if (value >= low_v && (value <= high_v || high_v == "")) {
+          // make sure keys are not part of the vector that contains
+          // keys whose values are not acceptable
+          if (neq_k) {
+            for (int i = 0; i < neq_cond_k.size(); i++) {
+              if (neq_cond_k[i] == key) {
+                inval_cond = true;
+                break;
+              }
+            }
+            if (inval_cond)
+              continue;
+          }
+          switch(attr)
+          {
+            case 1:
+              fprintf(stdout, "%d, ", key);
+              break;
+            case 2:
+              fprintf(stdout, "%s\n", value.c_str());
+              break;
+            case 3:
+              fprintf(stdout, "%d '%s'\n", key, value.c_str());
+              break;
+            case 4:
+              select_count++;
+              break;
+          }
         }
-      }
 
     }
   
@@ -265,15 +297,15 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
 
   BTreeIndex *btree = new BTreeIndex(table + ".idx", 'r');
   rc = selectHelper(btree, attr, table, cond);
-  if(rc != 0) {
-    fprintf(stdout, "selectHelper failed\n");
+  // rc will equal 0 if no error, or -1 if there are only <> conditions
+  if(rc != 0 && rc != -1) {
     return rc;
   }
   //else 
    // return rc;
 
   
-/*
+
   // scan the table file from the beginning
   rid.pid = rid.sid = 0;
   count = 0;
@@ -346,7 +378,7 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
     fprintf(stdout, "%d\n", count);
   }
   rc = 0;
-  */
+  
 
   // close the table file and return
   exit_select:

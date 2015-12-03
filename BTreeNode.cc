@@ -64,17 +64,14 @@ RC BTLeafNode::insert(int key, const RecordId& rid)
 {
 	int count = getKeyCount();
 
-	//fprintf(stdout, "------------------------------\nThere are %d keys currently\n", count);
-
 	// ISSUE: If the node is full, do we need to split or just report error?
 	if (count >= MAX_KEYS) {
-		//fprintf(stderr,"KEY COUNT EXCEEDS MAX KEYS; NODE FULL\nCANNOT INSERT %d\n", key);
     	return RC_NODE_FULL;
     }
 
     int eid = 0;
     if(count > 0) {locate(key, eid);
-    fprintf(stdout, "((EID: %d))", eid);}
+    }
 
     leafNodeEntry* l = (leafNodeEntry*) buffer + eid;
     if(count > 0 && eid != count)
@@ -117,7 +114,7 @@ RC BTLeafNode::insertAndSplit(int key, const RecordId& rid,
 	{
 		sibling.insert(l[c].key, l[c].rid);
 	}
-	memset(l, 0, (numKeys - mid_key) * sizeof(leafNodeEntry));
+	memset(l, -1, (numKeys - mid_key) * sizeof(leafNodeEntry));
 
 	if(curr_key == 1)
 		insert(key, rid);
@@ -127,6 +124,8 @@ RC BTLeafNode::insertAndSplit(int key, const RecordId& rid,
 		if(key < siblingKey)
 			siblingKey = key;
 	}
+	sibling.setNextNodePtr(getNextNodePtr());
+
 	return 0;
 }
 
@@ -144,20 +143,16 @@ RC BTLeafNode::insertAndSplit(int key, const RecordId& rid,
 RC BTLeafNode::locate(int searchKey, int& eid)
 {
 
-
 	leafNodeEntry* l = (leafNodeEntry*) buffer;
 	int keys = getKeyCount();
-	fprintf(stdout," NUM KEYS: %d ", keys);
+
 	for(int c = 0; c < keys; c++)
 	{
 		if(l->key == searchKey){
-
-			//fprintf(stdout, "We just read entry %d in locate(), with key %d\n", eid, key);
 			eid = c;
 			return 0;
 		}
 		else if(l->key > searchKey){
-			//fprintf(stderr, "key %d greater than searchkey %d, insert key at %d\n", key, searchKey, eid);
 			eid = c;
 			return RC_NO_SUCH_RECORD;
 		}
@@ -194,7 +189,6 @@ RC BTLeafNode::readLEntry(int eid, int& key, RecordId& rid)
 	leafNodeEntry* l = (leafNodeEntry*) buffer + eid;
 	key = l->key;
 	rid = l->rid;
-
 
 	return 0; 
 }

@@ -117,34 +117,26 @@ void BTreeIndex::save_tree()
 RC BTreeIndex::insertHelper(const RecordId& rid, int key, PageId pid, int &new_key, PageId &new_pid, int curr_height)
 {
 	RC rc;
-	new_key = -1;
-	new_pid = -1;
 
     //check if leaf node
 	if (curr_height == treeHeight) 
 	{
-		//fprintf(stdout, "insert into leaf node\n");
 		BTLeafNode* leaf = new BTLeafNode();
 		if((rc = leaf->read(pid, pf)) != 0) return rc;
-		//fprintf(stdout, "read successful\n");
 	
 		if((rc = leaf->insert(key, rid)) == RC_NODE_FULL)
 		{	
-			//fprintf(stdout, "node is full, must split\n");
 			BTLeafNode * sib = new BTLeafNode();
-			if((rc = leaf->insertAndSplit(key, rid, *sib, new_key)) != 0) return rc;
-			//fprintf(stdout, "insertAndSplit is successful\n");
-			new_pid = pf.endPid();
-			PageId temp = leaf->getNextNodePtr();
-			sib->setNextNodePtr(temp);
+			int temp_key;
+			if((rc = leaf->insertAndSplit(key, rid, *sib, temp_key)) != 0) return rc;
+			PageId temp_pid = pf.endPid();
+			if((rc = sib->write(temp_pid, pf)) != 0) return rc;
+			leaf->setNextNodePtr(temp_pid);
 			if((rc = leaf->write(pid, pf)) != 0) return rc;
-			//fprintf(stdout, "write to leafnode is successful\n");
-			if((rc = sib->write(new_pid, pf)) != 0) return rc;
-			//fprintf(stdout, "write to sibling leafnode is successful\n");
 			if(curr_height == 0)
 			{
 				BTNonLeafNode * new_root = new BTNonLeafNode();
-				if((rc = new_root->initializeRoot(pid, new_key, new_pid)) != 0) return rc;
+				if((rc = new_root->initializeRoot(pid, temp_key, temp_pid)) != 0) return rc;
 				PageId nroot_pid = pf.endPid();
 				if((rc = new_root->write(nroot_pid, pf)) != 0) return rc;
 				rootPid = nroot_pid;
@@ -153,24 +145,21 @@ RC BTreeIndex::insertHelper(const RecordId& rid, int key, PageId pid, int &new_k
 				delete new_root;
 			}
 			delete sib;
+			new_pid = temp_pid;
+			new_key = temp_key;
 		}
 	
-		if((rc = leaf->write(pid, pf)) != 0) return rc;
-		//fprintf(stdout, "write to leaf node\n");
+		else if((rc = leaf->write(pid, pf)) != 0) return rc;
      	delete leaf;
 	}
 	else{
-		//fprintf(stdout, "nonleafnode\n");
 		BTNonLeafNode* nl = new BTNonLeafNode();
 		if((rc = nl->read(pid, pf)) != 0) return rc;
-		//fprintf(stdout, "read nonleaf successful\n");
 		PageId c_pid;
 		if((rc = nl->locateChildPtr(key, c_pid)) != 0) return rc;
-		//fprintf(stdout, "locateChildPtr successful\n");
 		PageId csib_pid;
 		int csib_key;
 		if((rc = insertHelper(rid, key, c_pid, csib_key, csib_pid, curr_height+1)) != 0) return rc;
-		//fprintf(stdout, "insertHelper succeeded\n");
 		if(csib_key > 0)
 		{
 			if((rc = nl->insert(csib_key, csib_pid)) == RC_NODE_FULL){
@@ -260,28 +249,25 @@ RC BTreeIndex::locateHelper(int searchKey, IndexCursor& cursor, int counter, int
 		cursor.pid = pid;
 		BTLeafNode *ln = new BTLeafNode();
 		if((rc = ln->read(pid, pf)) < 0) return rc;
-		//fprintf(stdout, "locatehelper: read from leafnode is successful\n");
 		rc = ln->locate(searchKey, cursor.eid);
         //check for locate's success
 		if (rc < 0)
 			return rc;
-		//fprintf(stdout, "locatehelper: locate from leafnode is successful\n");
 	}
 	else { // nonleaf node
         //new instance of nonleafnode
         
 		BTNonLeafNode *n = new BTNonLeafNode();
 		if((rc = n->read(pid,pf)) < 0){
-			//fprintf(stdout, "locatehelper: read from nonleafnode returns %d", rc);
 			return rc;
 		}
-		//fprintf(stdout, "locatehelper: read from nonleaf successful\n");
+
 		PageId c_pid;
 		rc = n->locateChildPtr(searchKey, c_pid);
         //check if locateChildPtr succeessful
 		if (rc < 0)
 			return rc;
-		//fprintf(stdout, "locatehelper: locateChildPtr successful\n");
+
         //otherwise just keep going
 		return locateHelper(searchKey, cursor, counter+1, treeHeight, c_pid);
 	}
@@ -314,11 +300,9 @@ RC BTreeIndex::locate(int searchKey, IndexCursor& cursor)
 	RC rc;
     //call the recursive function that we made
     
-   // fprintf(stdout, "rootPid is %d\n", rootPid);
 	rc = locateHelper(searchKey, cursor, 0, treeHeight, rootPid); // puts the cursor at the leaf node
 	if (rc < 0)
 		return rc;
-	//fprintf(stdout, "locatehelper successful\n");
 
     return 0;
 }
@@ -343,12 +327,11 @@ RC BTreeIndex::readForward(IndexCursor& cursor, int& key, RecordId& rid)
 
         //check if read successful
     if((rc = ln->read(cursor.pid, pf)) != 0) {
-    	fprintf(stderr, "rc: %d; cursor.pid: %d\n", rc, cursor.pid);return rc;}
+    	return rc;}
     //check if readLEntry successful
     if((rc = ln->readLEntry(cursor.eid, key, rid)) != 0) {
-    	fprintf(stderr, "rc: %d; cursor.eid: %d\n", rc, cursor.eid);return rc;}
+    	return rc;}
 
-    
     cursor.eid++;
     //check eid against the getKeyCount
     if(cursor.eid == ln->getKeyCount()+1)
